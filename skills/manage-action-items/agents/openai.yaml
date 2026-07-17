@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Action Items"
+  short_description: "Create, query, update, and audit items"
+  default_prompt: "Use $manage-action-items to safely perform the requested Action Items operation and report the resulting IDs and state."

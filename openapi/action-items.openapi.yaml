@@ -1,0 +1,353 @@
+openapi: 3.1.0
+info:
+  title: RaidGuild Action Items API
+  version: 1.0.0
+  description: |
+    Create, query, assign, update, and audit RaidGuild Action Items.
+    Priority is a positive integer where lower values are more urgent. Effort is
+    a positive integer with no prescribed unit. Items are cancelled, not deleted.
+servers:
+  - url: https://action-items.raidguild.org
+    description: Production
+  - url: http://localhost:3000
+    description: Local development
+tags:
+  - name: Items
+  - name: History
+  - name: Users
+security:
+  - agentBearer: []
+  - portalSession: []
+paths:
+  /api/v1/items:
+    get:
+      tags: [Items]
+      operationId: listActionItems
+      summary: List action items
+      description: Returns a cursor-paginated list ordered by priority ascending (null last), updated time descending, then ID descending.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Statuses'
+        - $ref: '#/components/parameters/AssigneeId'
+        - name: assignedTo
+          in: query
+          schema: { type: string, enum: [me, unassigned] }
+          description: "`me` is available only with a Portal session."
+        - name: priority
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: priorityMin
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: priorityMax
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: effortMin
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: effortMax
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of action items.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    post:
+      tags: [Items]
+      operationId: createActionItem
+      summary: Create an action item
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateItemInput' }
+            examples:
+              p1:
+                value:
+                  title: Prepare the cohort kickoff brief
+                  description: Gather context and draft the first version.
+                  status: open
+                  priority: 1
+                  effort: 3
+      responses:
+        '201':
+          description: Item created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '200':
+          description: Idempotent replay of an earlier successful creation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/items/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    get:
+      tags: [Items]
+      operationId: getActionItem
+      summary: Get an action item and recent history
+      responses:
+        '200':
+          description: Full item and initial history page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [item, history]
+                properties:
+                  item: { $ref: '#/components/schemas/ActionItem' }
+                  history: { $ref: '#/components/schemas/HistoryList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Items]
+      operationId: updateActionItem
+      summary: Update an action item
+      description: Requires the current version. A stale version returns the latest item with HTTP 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateItemInput' }
+      responses:
+        '200':
+          description: Item updated, including any newly appended audit events.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/items/{itemId}/history:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    get:
+      tags: [History]
+      operationId: listActionItemHistory
+      summary: List immutable action-item history
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: eventType
+          in: query
+          schema: { type: string, enum: [created, field_changed] }
+        - name: fieldName
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of history events, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistoryList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/users:
+    get:
+      tags: [Users]
+      operationId: listAssignableUsers
+      summary: List locally known assignable Portal users
+      description: MVP users become available after their first valid Action Items launch.
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - name: active
+          in: query
+          schema: { type: boolean, default: true }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of assignable users.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+components:
+  securitySchemes:
+    agentBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Server-to-server Action Items agent credential.
+    portalSession:
+      type: apiKey
+      in: cookie
+      name: raidguild-action-items
+      description: Encrypted app session created by a valid Portal launch.
+  parameters:
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Search:
+      name: q
+      in: query
+      schema: { type: string, maxLength: 200 }
+    Statuses:
+      name: status
+      in: query
+      description: Comma-separated statuses, such as `open,active`.
+      schema: { type: string }
+    AssigneeId:
+      name: assigneeId
+      in: query
+      schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, maxLength: 200 }
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    NotFound:
+      description: Resource not found.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    Conflict:
+      description: Version or idempotency conflict.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    ValidationError:
+      description: Request validation failed.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+  schemas:
+    Status:
+      type: string
+      enum: [open, active, completed, cancelled]
+    UserSummary:
+      type: object
+      required: [id, portalProfileId, name, handle, avatarUrl, isActive]
+      properties:
+        id: { type: string, format: uuid }
+        portalProfileId: { type: [string, 'null'] }
+        name: { type: [string, 'null'] }
+        handle: { type: [string, 'null'] }
+        avatarUrl: { type: [string, 'null'], format: uri }
+        isActive: { type: boolean }
+    ActionItem:
+      type: object
+      required: [id, title, description, status, assignee, priority, effort, version, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 300 }
+        description: { type: string, maxLength: 100000 }
+        status: { $ref: '#/components/schemas/Status' }
+        assignee:
+          oneOf:
+            - $ref: '#/components/schemas/UserSummary'
+            - type: 'null'
+        priority: { type: [integer, 'null'], minimum: 1, description: Lower is more urgent. }
+        effort: { type: [integer, 'null'], minimum: 1, description: Unit is intentionally undefined. }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateItemInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 300 }
+        description: { type: string, maxLength: 100000, default: '' }
+        status: { $ref: '#/components/schemas/Status' }
+        assignedUserId: { type: [string, 'null'], format: uuid }
+        priority: { type: [integer, 'null'], minimum: 1 }
+        effort: { type: [integer, 'null'], minimum: 1 }
+    UpdateItemInput:
+      type: object
+      additionalProperties: false
+      required: [version]
+      minProperties: 2
+      properties:
+        version: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 300 }
+        description: { type: string, maxLength: 100000 }
+        status: { $ref: '#/components/schemas/Status' }
+        assignedUserId: { type: [string, 'null'], format: uuid }
+        priority: { type: [integer, 'null'], minimum: 1 }
+        effort: { type: [integer, 'null'], minimum: 1 }
+    Event:
+      type: object
+      required: [id, requestId, eventType, fieldName, oldValue, newValue, actor, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        requestId: { type: string, format: uuid }
+        eventType: { type: string, enum: [created, field_changed] }
+        fieldName: { type: [string, 'null'] }
+        oldValue: {}
+        newValue: {}
+        actor:
+          type: object
+          required: [type, id, label]
+          properties:
+            type: { type: string, enum: [portal_user, agent, system] }
+            id: { type: string }
+            label: { type: string }
+        createdAt: { type: string, format: date-time }
+    Page:
+      type: object
+      required: [hasMore, nextCursor]
+      properties:
+        hasMore: { type: boolean }
+        nextCursor: { type: [string, 'null'] }
+    ItemList:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ActionItem' } }
+        page: { $ref: '#/components/schemas/Page' }
+    HistoryList:
+      type: object
+      required: [events, page]
+      properties:
+        events: { type: array, items: { $ref: '#/components/schemas/Event' } }
+        page: { $ref: '#/components/schemas/Page' }
+    UserList:
+      type: object
+      required: [users, page]
+      properties:
+        users: { type: array, items: { $ref: '#/components/schemas/UserSummary' } }
+        page: { $ref: '#/components/schemas/Page' }
+    MutationResult:
+      type: object
+      required: [item, events, requestId]
+      properties:
+        item: { $ref: '#/components/schemas/ActionItem' }
+        events: { type: array, items: { $ref: '#/components/schemas/Event' } }
+        requestId: { type: string, format: uuid }
+        replayed: { type: boolean }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId, details]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string, format: uuid }
+            details: { type: object, additionalProperties: true }

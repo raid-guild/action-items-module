@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 20% 3%;
+    --foreground: 30 10% 90%;
+    --card: 240 15% 6%;
+    --card-foreground: 30 10% 90%;
+    --popover: 240 15% 6%;
+    --popover-foreground: 30 10% 90%;
+    --primary: 160 63% 50%;
+    --primary-foreground: 240 20% 3%;
+    --secondary: 347 100% 61%;
+    --secondary-foreground: 30 10% 96%;
+    --muted: 240 10% 12%;
+    --muted-foreground: 220 10% 58%;
+    --accent: 347 100% 61%;
+    --accent-foreground: 30 10% 96%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 240 10% 14%;
+    --input: 240 10% 14%;
+    --ring: 160 63% 50%;
+    --radius: 0.35rem;
+  }
+
+  * { @apply border-border; }
+  html, body { @apply h-full; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+  button, input, textarea, select { font: inherit; }
+}
+
+@layer utilities {
+  .noise-bg::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index: -1;
+  }
+}
