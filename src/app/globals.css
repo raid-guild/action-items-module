@@ -26,14 +26,25 @@
     --radius: 0.35rem;
   }
 
-  * { @apply border-border; }
+  * {
+    @apply border-border;
+  }
   html {
     @apply h-full;
-    font-size: calc(100% + 10px);
+    font-size: calc(100% + 9px);
   }
-  body { @apply h-full; }
-  body { @apply bg-background text-foreground font-sans antialiased; }
-  button, input, textarea, select { font: inherit; }
+  body {
+    @apply h-full;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
 }
 
 @layer utilities {
