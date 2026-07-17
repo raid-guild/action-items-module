@@ -48,8 +48,35 @@ function safeEqual(left: string, right: string) {
   return timingSafeEqual(leftHash, rightHash);
 }
 
-function assertSameOrigin(request: NextRequest) {
+export function assertSameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
   if (!origin) return;
-  if (origin !== request.nextUrl.origin) throw new AuthError(403, "Cross-origin mutation rejected.");
+  const expectedOrigin = configuredOrigin() ?? forwardedOrigin(request) ?? request.nextUrl.origin;
+  if (normalizeOrigin(origin) !== normalizeOrigin(expectedOrigin)) {
+    throw new AuthError(403, "Cross-origin mutation rejected.");
+  }
+}
+
+function configuredOrigin() {
+  const value = process.env.APP_ORIGIN?.trim();
+  return value || null;
+}
+
+function forwardedOrigin(request: NextRequest) {
+  const host = firstForwardedValue(request.headers.get("x-forwarded-host"));
+  if (!host) return null;
+  const protocol = firstForwardedValue(request.headers.get("x-forwarded-proto")) || request.nextUrl.protocol.replace(":", "");
+  return `${protocol}://${host}`;
+}
+
+function firstForwardedValue(value: string | null) {
+  return value?.split(",", 1)[0]?.trim() || null;
+}
+
+function normalizeOrigin(value: string) {
+  try {
+    return new URL(value).origin;
+  } catch {
+    throw new AuthError(403, "Application origin configuration is invalid.");
+  }
 }
