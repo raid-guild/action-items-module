@@ -51,8 +51,11 @@ function safeEqual(left: string, right: string) {
 export function assertSameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
   if (!origin) return;
-  const expectedOrigin = configuredOrigin() ?? forwardedOrigin(request) ?? request.nextUrl.origin;
-  if (normalizeOrigin(origin) !== normalizeOrigin(expectedOrigin)) {
+  const requestOrigin = normalizeOrigin(origin);
+  const allowedOrigins = [configuredOrigin(), forwardedOrigin(request), request.nextUrl.origin]
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeOrigin);
+  if (!allowedOrigins.includes(requestOrigin)) {
     throw new AuthError(403, "Cross-origin mutation rejected.");
   }
 }

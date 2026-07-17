@@ -29,6 +29,26 @@ describe("same-origin validation behind Railway", () => {
     });
     expect(() => assertSameOrigin(request)).not.toThrow();
   });
+
+  it("accepts the proxy's public origin when APP_ORIGIN is stale", () => {
+    process.env.APP_ORIGIN = "https://old-action-items.example";
+    const request = mutationRequest({
+      origin: publicOrigin,
+      "x-forwarded-host": "action-items-module-production.up.railway.app",
+      "x-forwarded-proto": "https"
+    });
+    expect(() => assertSameOrigin(request)).not.toThrow();
+  });
+
+  it("still rejects an unrelated origin when proxy headers are present", () => {
+    process.env.APP_ORIGIN = "https://old-action-items.example";
+    const request = mutationRequest({
+      origin: "https://attacker.example",
+      "x-forwarded-host": "action-items-module-production.up.railway.app",
+      "x-forwarded-proto": "https"
+    });
+    expect(() => assertSameOrigin(request)).toThrow(AuthError);
+  });
 });
 
 function mutationRequest(headers: Record<string, string>) {

@@ -25,7 +25,6 @@ export function ActionItemsApp() {
   const session = useQuery({ queryKey: ["session"], queryFn: () => apiFetch<SessionResponse>("/api/session"), retry: false });
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
-  const [status, setStatus] = useState("open,active");
   const [assignedTo, setAssignedTo] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -38,11 +37,10 @@ export function ActionItemsApp() {
   });
 
   const itemsQuery = useInfiniteQuery({
-    queryKey: ["items", deferredSearch, status, assignedTo],
+    queryKey: ["items", deferredSearch, assignedTo],
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: "50" });
+      const params = new URLSearchParams({ limit: "50", status: "open,active" });
       if (deferredSearch) params.set("q", deferredSearch);
-      if (status) params.set("status", status);
       if (assignedTo) params.set("assignedTo", assignedTo);
       if (pageParam) params.set("cursor", pageParam);
       return apiFetch<ItemPage>(`/api/v1/items?${params}`);
@@ -91,14 +89,6 @@ export function ActionItemsApp() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Search items…" aria-label="Search action items" />
         </div>
-        <select className={filterClass} value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter by status">
-          <option value="open,active">Actionable</option>
-          <option value="open">Open</option>
-          <option value="active">Active</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="">All statuses</option>
-        </select>
         <Button variant={assignedTo === "me" ? "default" : "outline"} onClick={() => setAssignedTo(assignedTo === "me" ? "" : "me")}>My items</Button>
         <Button onClick={() => { setSelectedItemId(null); setDialogOpen(true); }}><Plus className="h-4 w-4" />New item</Button>
         <div className="ml-1 flex items-center gap-2 border-l pl-3">
@@ -181,4 +171,3 @@ export function ActionItemsApp() {
 
 function Centered({ children }: { children: React.ReactNode }) { return <div className="flex min-h-56 flex-1 items-center justify-center p-8">{children}</div>; }
 function initials(value: string) { return value.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join(""); }
-const filterClass = "h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
