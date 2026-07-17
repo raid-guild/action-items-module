@@ -155,9 +155,6 @@ export function ActionItemsApp() {
             <h1 className="font-heading text-lg font-semibold leading-tight">
               Action Items
             </h1>
-            <p className="text-xs text-muted-foreground">
-              P1 first · shared work queue
-            </p>
           </div>
         </div>
 
@@ -237,7 +234,7 @@ export function ActionItemsApp() {
         )}
       </section>
 
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] border-b bg-muted/30 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:px-6">
+      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] border-b bg-muted/30 px-4 py-2 text-[.5rem] font-semibold uppercase tracking-wider text-muted-foreground md:px-6">
         <span>Item</span>
         <span>Assignee</span>
         <span>Priority</span>
