@@ -39,10 +39,19 @@ export async function POST(request: NextRequest) {
       guidance = await sendPrismMessage(prismSessionId, externalUserId, prompt);
     } catch (error) {
       if (!(error instanceof ApiError) || error.code !== "PRISM_SESSION_NOT_FOUND") throw error;
+      delete session.prismSessionId;
+      await session.save();
       prismSessionId = await createPrismSession(externalUserId);
       session.prismSessionId = prismSessionId;
       await session.save();
-      guidance = await sendPrismMessage(prismSessionId, externalUserId, prompt);
+      try {
+        guidance = await sendPrismMessage(prismSessionId, externalUserId, prompt);
+      } catch (retryError) {
+        if (!(retryError instanceof ApiError) || retryError.code !== "PRISM_SESSION_NOT_FOUND") throw retryError;
+        delete session.prismSessionId;
+        await session.save();
+        throw new ApiError(502, "PRISM_SESSION_RECOVERY_FAILED", "Prism created a new conversation but could not find it for the first message.", retryError.details);
+      }
     }
 
     return jsonWithRequestId({ guidance, selection: selectionKind }, requestId);

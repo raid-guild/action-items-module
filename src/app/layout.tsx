@@ -13,8 +13,8 @@ export const metadata: Metadata = {
   title: "Action Items · RaidGuild",
   description: "RaidGuild's shared, agent-ready action item list.",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico"
+    icon: [{ url: "/favicon.ico?v=1", type: "image/x-icon", sizes: "any" }],
+    shortcut: "/favicon.ico?v=1"
   }
 };
 

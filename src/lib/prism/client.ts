@@ -1,7 +1,8 @@
 import { ApiError } from "@/lib/api/errors";
 
-type PrismSessionResponse = { sessionId?: unknown; error?: unknown };
-type PrismMessageResponse = { message?: { content?: unknown }; error?: unknown };
+type PrismResponse = { requestId?: unknown; error?: unknown };
+type PrismSessionResponse = PrismResponse & { sessionId?: unknown };
+type PrismMessageResponse = PrismResponse & { message?: { content?: unknown } };
 
 export async function createPrismSession(externalUserId: string) {
   const response = await prismFetch("/sessions", externalUserId, {
@@ -9,7 +10,9 @@ export async function createPrismSession(externalUserId: string) {
     body: JSON.stringify({ metadata: { externalUserId, source: "external-chatbot" } })
   });
   const payload = await safeJson<PrismSessionResponse>(response);
-  if (!response.ok || typeof payload.sessionId !== "string") throw upstreamError(response, payload.error, "Prism session creation failed.");
+  if (!response.ok || typeof payload.sessionId !== "string") {
+    throw upstreamError(response, payload, "Prism session creation failed.", "create");
+  }
   return payload.sessionId;
 }
 
@@ -19,13 +22,15 @@ export async function sendPrismMessage(sessionId: string, externalUserId: string
     body: JSON.stringify({ message, metadata: { externalUserId } })
   });
   const payload = await safeJson<PrismMessageResponse>(response);
-  if (!response.ok || typeof payload.message?.content !== "string") throw upstreamError(response, payload.error, "Prism could not answer right now.");
+  if (!response.ok || typeof payload.message?.content !== "string") {
+    throw upstreamError(response, payload, "Prism could not answer right now.", "message");
+  }
   return payload.message.content;
 }
 
 function prismFetch(path: string, externalUserId: string, init: RequestInit) {
   const baseUrl = (process.env.PRISM_BASE_URL?.trim() || "https://prism.raidguild.org").replace(/\/$/, "");
-  const interfaceKey = process.env.PRISM_EXTERNAL_INTERFACE_KEY?.trim() || "external-chatbot";
+  const interfaceKey = process.env.PRISM_EXTERNAL_INTERFACE_KEY?.trim() || "action-items";
   const credential = process.env.PRISM_EXTERNAL_INTERFACE_CREDENTIAL?.trim();
   if (!credential) throw new ApiError(503, "PRISM_NOT_CONFIGURED", "Prism guidance is not configured.");
   return fetch(`${baseUrl}/interactions/${encodeURIComponent(interfaceKey)}${path}`, {
@@ -45,15 +50,28 @@ async function safeJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({} as T));
 }
 
-function upstreamError(response: Response, upstreamCode: unknown, fallback: string) {
-  if (response.status === 404) return new ApiError(404, "PRISM_SESSION_NOT_FOUND", "The Prism conversation expired.");
+function upstreamError(response: Response, payload: PrismResponse, fallback: string, operation: "create" | "message") {
+  const upstreamCode = typeof payload.error === "string" ? payload.error : undefined;
+  const prismRequestId = typeof payload.requestId === "string" ? payload.requestId : undefined;
+  const details = { upstreamStatus: response.status, upstreamCode, prismRequestId };
+
+  if (operation === "message" && response.status === 404 && upstreamCode === "EXTERNAL_INTERACTION_SESSION_NOT_FOUND") {
+    return new ApiError(404, "PRISM_SESSION_NOT_FOUND", "The Prism conversation expired.", details);
+  }
+  if (response.status === 404 && upstreamCode === "EXTERNAL_INTERFACE_NOT_FOUND") {
+    return new ApiError(502, "PRISM_INTERFACE_NOT_FOUND", "The configured Prism external interface was not found.", details);
+  }
+  if (response.status === 409 && upstreamCode === "EXTERNAL_INTERFACE_DISABLED") {
+    return new ApiError(503, "PRISM_INTERFACE_DISABLED", "The Prism external interface is disabled.", details);
+  }
+  if (response.status === 401 && upstreamCode === "EXTERNAL_INTERFACE_UNAUTHORIZED") {
+    return new ApiError(502, "PRISM_INTERFACE_UNAUTHORIZED", "Prism rejected the external interface credential.", details);
+  }
   if (response.status === 429) {
     return new ApiError(429, "PRISM_RATE_LIMITED", "Prism is busy. Please try again shortly.", {
+      ...details,
       retryAfter: response.headers.get("retry-after")
     });
   }
-  return new ApiError(502, "PRISM_UPSTREAM_ERROR", fallback, {
-    upstreamStatus: response.status,
-    upstreamCode: typeof upstreamCode === "string" ? upstreamCode : undefined
-  });
+  return new ApiError(502, "PRISM_UPSTREAM_ERROR", fallback, details);
 }
