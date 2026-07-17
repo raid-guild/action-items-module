@@ -7,9 +7,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        heading: ["Space Grotesk", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["var(--font-roboto-mono)", "Roboto Mono", "monospace"],
+        heading: ["var(--font-roboto-mono)", "Roboto Mono", "monospace"],
+        mono: ["var(--font-roboto-mono)", "Roboto Mono", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",

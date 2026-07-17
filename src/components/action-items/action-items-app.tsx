@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { ActionItemDialog } from "@/components/action-items/action-item-dialog";
 import { StatusBadge } from "@/components/action-items/status-badge";
 import { apiFetch, type ActionItem, type UserSummary, userLabel } from "@/lib/client-api";
@@ -53,7 +54,7 @@ export function ActionItemsApp() {
 
   const items = useMemo(() => itemsQuery.data?.pages.flatMap((page) => page.items) ?? [], [itemsQuery.data]);
   const parentRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({ count: items.length, getScrollElement: () => parentRef.current, estimateSize: () => 58, overscan: 12 });
+  const virtualizer = useVirtualizer({ count: items.length, getScrollElement: () => parentRef.current, estimateSize: () => 76, overscan: 12 });
 
   const assistant = useMutation({
     mutationFn: () => apiFetch<{ guidance: string; selection: string }>("/api/assistant/what-do-i-do", { method: "POST" }),
@@ -125,8 +126,8 @@ export function ActionItemsApp() {
         {assistant.error && <p className="mt-2 text-right text-xs text-destructive">{assistant.error.message}</p>}
       </section>
 
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,240px)_110px] border-b bg-muted/30 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:px-6">
-        <span>Item</span><span>Assignee</span><span>Status</span>
+      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] border-b bg-muted/30 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:px-6">
+        <span>Item</span><span>Assignee</span><span>Priority</span><span>Status</span>
       </div>
 
       <div
@@ -147,12 +148,13 @@ export function ActionItemsApp() {
                 return (
                   <button
                     key={item.id}
-                    className="absolute left-0 grid w-full grid-cols-[minmax(0,1fr)_minmax(120px,240px)_110px] items-center border-b px-4 text-left text-sm transition-colors hover:bg-muted/60 focus:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring md:px-6"
+                    className="absolute left-0 grid w-full grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] items-center border-b px-4 text-left text-sm transition-colors hover:bg-muted/60 focus:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring md:px-6"
                     style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
                     onClick={() => { setSelectedItemId(item.id); setDialogOpen(true); }}
                   >
                     <span className="flex min-w-0 items-center gap-2 pr-3"><span className="truncate font-medium">{item.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></span>
                     <span className="truncate pr-3 text-muted-foreground">{userLabel(item.assignee)}</span>
+                    <span>{item.priority === null ? <span className="text-muted-foreground">—</span> : <Badge className="border-primary/30 bg-primary/10 text-primary">P{item.priority}</Badge>}</span>
                     <span><StatusBadge status={item.status} /></span>
                   </button>
                 );

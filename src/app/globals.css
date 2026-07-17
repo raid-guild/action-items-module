@@ -27,7 +27,11 @@
   }
 
   * { @apply border-border; }
-  html, body { @apply h-full; }
+  html {
+    @apply h-full;
+    font-size: calc(100% + 10px);
+  }
+  body { @apply h-full; }
   body { @apply bg-background text-foreground font-sans antialiased; }
   button, input, textarea, select { font: inherit; }
 }
