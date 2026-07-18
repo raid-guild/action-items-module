@@ -132,6 +132,7 @@ export function ActionItemDialog({
         (previous: ItemDetail | undefined) =>
           previous
             ? {
+                ...previous,
                 item: result.item,
                 history: {
                   ...previous.history,
@@ -177,8 +178,10 @@ export function ActionItemDialog({
             ? {
                 ...previous,
                 notes: {
-                  ...previous.notes,
-                  notes: [note, ...previous.notes.notes],
+                  ...(previous.notes ?? {
+                    page: { hasMore: false, nextCursor: null },
+                  }),
+                  notes: [note, ...(previous.notes?.notes ?? [])],
                 },
               }
             : previous,
@@ -196,6 +199,7 @@ export function ActionItemDialog({
     () => groupEvents(historyEvents),
     [historyEvents],
   );
+  const itemNotes = detail.data?.notes?.notes ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -425,9 +429,9 @@ export function ActionItemDialog({
                       </p>
                     )}
                   </form>
-                  {detail.data?.notes.notes.length ? (
+                  {itemNotes.length ? (
                     <ol className="space-y-4">
-                      {detail.data.notes.notes.map((note) => (
+                      {itemNotes.map((note) => (
                         <li
                           key={note.id}
                           className="rounded-md border bg-card/60 p-3"
