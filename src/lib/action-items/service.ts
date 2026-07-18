@@ -6,8 +6,14 @@ import { z } from "zod";
 import type { Actor } from "@/lib/auth/actor";
 import { ApiError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db/client";
-import { idempotencyKeys, itemEvents, items, users, type ItemEventRow, type ItemRow, type UserRow } from "@/lib/db/schema";
-import { itemStatusSchema, type CreateItemInput, type UpdateItemInput } from "@/lib/action-items/schemas";
+import {
+  idempotencyKeys, itemEvents, itemNotes, items, projects, users,
+  type ItemEventRow, type ItemNoteRow, type ItemRow, type ProjectRow, type UserRow
+} from "@/lib/db/schema";
+import {
+  itemStatusSchema, projectStatusSchema,
+  type CreateItemInput, type CreateProjectInput, type UpdateItemInput
+} from "@/lib/action-items/schemas";
 
 export type UserSummary = {
   id: string;
@@ -18,11 +24,28 @@ export type UserSummary = {
   isActive: boolean;
 };
 
+export type ProjectSummary = {
+  id: string;
+  title: string;
+  description: string;
+  portalLinkUrl: string | null;
+  status: "open" | "closed";
+};
+
+export type ActionItemNote = {
+  id: string;
+  text: string;
+  user: UserSummary;
+  createdAt: string;
+};
+
 export type ActionItem = {
   id: string;
   title: string;
   description: string;
+  budget: string;
   status: "open" | "active" | "completed" | "cancelled";
+  project: ProjectSummary | null;
   assignee: UserSummary | null;
   priority: number | null;
   effort: number | null;
@@ -46,6 +69,7 @@ export async function listActionItems(input: {
   q?: string;
   status?: string;
   assigneeId?: string;
+  projectId?: string;
   assignedTo?: "me" | "unassigned";
   priority?: number;
   priorityMin?: number;
@@ -69,6 +93,7 @@ export async function listActionItems(input: {
     conditions.push(inArray(items.status, parsed.data));
   }
   if (input.assigneeId) conditions.push(eq(items.assignedUserId, input.assigneeId));
+  if (input.projectId) conditions.push(eq(items.projectId, input.projectId));
   if (input.assignedTo === "unassigned") conditions.push(isNull(items.assignedUserId));
   if (input.assignedTo === "me") {
     if (!actor.localUserId) throw new ApiError(422, "ME_FILTER_UNAVAILABLE", "assignedTo=me requires a Portal user session.");
@@ -92,9 +117,10 @@ export async function listActionItems(input: {
       : or(gt(items.priority, cursor.priority), isNull(items.priority), withinSamePriority)!);
   }
 
-  const rows = await db.select({ item: items, assignee: users })
+  const rows = await db.select({ item: items, assignee: users, project: projects })
     .from(items)
     .leftJoin(users, eq(items.assignedUserId, users.id))
+    .leftJoin(projects, eq(items.projectId, projects.id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(sql`${items.priority} asc nulls last`, desc(items.updatedAt), desc(items.id))
     .limit(input.limit + 1);
@@ -103,7 +129,7 @@ export async function listActionItems(input: {
   const pageRows = rows.slice(0, input.limit);
   const last = pageRows.at(-1)?.item;
   return {
-    items: pageRows.map((row) => itemDto(row.item, row.assignee)),
+    items: pageRows.map((row) => itemDto(row.item, row.assignee, row.project)),
     page: {
       hasMore,
       nextCursor: hasMore && last ? encodeCursor({ priority: last.priority, updatedAt: last.updatedAt.toISOString(), id: last.id }) : null
@@ -113,13 +139,14 @@ export async function listActionItems(input: {
 
 export async function getActionItem(itemId: string) {
   const db = getDb();
-  const [row] = await db.select({ item: items, assignee: users })
+  const [row] = await db.select({ item: items, assignee: users, project: projects })
     .from(items)
     .leftJoin(users, eq(items.assignedUserId, users.id))
+    .leftJoin(projects, eq(items.projectId, projects.id))
     .where(eq(items.id, itemId))
     .limit(1);
   if (!row) throw new ApiError(404, "ITEM_NOT_FOUND", "Action item not found.");
-  return itemDto(row.item, row.assignee);
+  return itemDto(row.item, row.assignee, row.project);
 }
 
 export async function createActionItem(input: CreateItemInput, actor: Actor, idempotencyKey?: string | null) {
@@ -148,10 +175,13 @@ export async function createActionItem(input: CreateItemInput, actor: Actor, ide
     }
 
     const assignee = input.assignedUserId ? await requireUser(tx, input.assignedUserId) : null;
+    const project = input.projectId ? await requireProject(tx, input.projectId) : null;
     const [item] = await tx.insert(items).values({
       title: input.title,
       description: input.description,
+      budget: input.budget,
       status: input.status,
+      projectId: input.projectId ?? null,
       assignedUserId: input.assignedUserId ?? null,
       priority: input.priority ?? null,
       effort: input.effort ?? null
@@ -164,7 +194,7 @@ export async function createActionItem(input: CreateItemInput, actor: Actor, ide
       eventType: "created",
       fieldName: null,
       oldValue: null,
-      newValue: itemSnapshot(item, assignee),
+      newValue: itemSnapshot(item, assignee, project),
       actor
     })).returning();
 
@@ -197,13 +227,19 @@ export async function updateActionItem(itemId: string, input: UpdateItemInput, a
     const nextAssignee = input.assignedUserId !== undefined
       ? input.assignedUserId ? await requireUser(tx, input.assignedUserId) : null
       : currentAssignee;
-    const changes = changedFields(current, input, currentAssignee, nextAssignee);
+    const currentProject = current.projectId ? await requireProject(tx, current.projectId) : null;
+    const nextProject = input.projectId !== undefined
+      ? input.projectId ? await requireProject(tx, input.projectId) : null
+      : currentProject;
+    const changes = changedFields(current, input, currentAssignee, nextAssignee, currentProject, nextProject);
     if (!changes.length) return { events: [] as ItemEventRow[] };
 
     const set: Partial<typeof items.$inferInsert> = { updatedAt: new Date(), version: current.version + 1 };
     if (input.title !== undefined) set.title = input.title;
     if (input.description !== undefined) set.description = input.description;
+    if (input.budget !== undefined) set.budget = input.budget;
     if (input.status !== undefined) set.status = input.status;
+    if (input.projectId !== undefined) set.projectId = input.projectId;
     if (input.assignedUserId !== undefined) set.assignedUserId = input.assignedUserId;
     if (input.priority !== undefined) set.priority = input.priority;
     if (input.effort !== undefined) set.effort = input.effort;
@@ -272,12 +308,68 @@ export async function listAssignableUsers(input: { q?: string; active: string; l
   };
 }
 
-function itemDto(item: ItemRow, assignee: UserRow | null): ActionItem {
+export async function listProjects(input: { status?: "open" | "closed"; limit: number }) {
+  const db = getDb();
+  const rows = await db.select().from(projects)
+    .where(input.status ? eq(projects.status, input.status) : undefined)
+    .orderBy(asc(projects.title), asc(projects.id))
+    .limit(input.limit);
+  return { projects: rows.map(projectSummary) };
+}
+
+export async function createProject(input: CreateProjectInput) {
+  const db = getDb();
+  const [project] = await db.insert(projects).values({
+    title: input.title,
+    description: input.description,
+    portalLinkUrl: input.portalLinkUrl ?? null,
+    status: input.status
+  }).returning();
+  if (!project) throw new ApiError(500, "CREATE_FAILED", "Project creation returned no row.");
+  return { project: projectSummary(project) };
+}
+
+export async function listActionItemNotes(itemId: string, input: { limit: number; cursor?: string }) {
+  await getActionItem(itemId);
+  const db = getDb();
+  const conditions: SQL[] = [eq(itemNotes.itemId, itemId)];
+  if (input.cursor) {
+    const cursor = decodeCursor(input.cursor, noteCursorSchema);
+    const time = new Date(cursor.createdAt);
+    conditions.push(or(lt(itemNotes.createdAt, time), and(eq(itemNotes.createdAt, time), lt(itemNotes.id, cursor.id)))!);
+  }
+  const rows = await db.select({ note: itemNotes, user: users }).from(itemNotes)
+    .innerJoin(users, eq(itemNotes.userId, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(itemNotes.createdAt), desc(itemNotes.id))
+    .limit(input.limit + 1);
+  const hasMore = rows.length > input.limit;
+  const pageRows = rows.slice(0, input.limit);
+  const last = pageRows.at(-1)?.note;
+  return {
+    notes: pageRows.map((row) => noteDto(row.note, row.user)),
+    page: { hasMore, nextCursor: hasMore && last ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id }) : null }
+  };
+}
+
+export async function createActionItemNote(itemId: string, text: string, actor: Actor) {
+  if (!actor.localUserId) throw new ApiError(422, "NOTE_USER_REQUIRED", "Notes require a Portal user session.");
+  const db = getDb();
+  await getActionItem(itemId);
+  const user = await requireUser(db, actor.localUserId);
+  const [note] = await db.insert(itemNotes).values({ itemId, userId: user.id, text }).returning();
+  if (!note) throw new ApiError(500, "CREATE_FAILED", "Note creation returned no row.");
+  return { note: noteDto(note, user) };
+}
+
+function itemDto(item: ItemRow, assignee: UserRow | null, project: ProjectRow | null): ActionItem {
   return {
     id: item.id,
     title: item.title,
     description: item.description,
+    budget: item.budget,
     status: itemStatusSchema.parse(item.status),
+    project: project ? projectSummary(project) : null,
     assignee: assignee ? userSummary(assignee) : null,
     priority: item.priority,
     effort: item.effort,
@@ -304,11 +396,27 @@ function userSummary(user: UserRow): UserSummary {
   return { id: user.id, portalProfileId: user.portalProfileId, name: user.name, handle: user.handle, avatarUrl: user.avatarUrl, isActive: user.isActive };
 }
 
-function itemSnapshot(item: ItemRow, assignee: UserRow | null) {
+function projectSummary(project: ProjectRow): ProjectSummary {
+  return {
+    id: project.id,
+    title: project.title,
+    description: project.description,
+    portalLinkUrl: project.portalLinkUrl,
+    status: projectStatusSchema.parse(project.status)
+  };
+}
+
+function noteDto(note: ItemNoteRow, user: UserRow): ActionItemNote {
+  return { id: note.id, text: note.text, user: userSummary(user), createdAt: note.createdAt.toISOString() };
+}
+
+function itemSnapshot(item: ItemRow, assignee: UserRow | null, project: ProjectRow | null) {
   return {
     title: item.title,
     description: item.description,
+    budget: item.budget,
     status: item.status,
+    project: project ? projectSummary(project) : null,
     assignee: assignee ? userSummary(assignee) : null,
     priority: item.priority,
     effort: item.effort,
@@ -339,11 +447,22 @@ function eventValues(input: {
   };
 }
 
-function changedFields(current: ItemRow, input: UpdateItemInput, oldAssignee: UserRow | null, newAssignee: UserRow | null) {
+function changedFields(
+  current: ItemRow,
+  input: UpdateItemInput,
+  oldAssignee: UserRow | null,
+  newAssignee: UserRow | null,
+  oldProject: ProjectRow | null,
+  newProject: ProjectRow | null
+) {
   const changes: Array<{ field: string; oldValue: unknown; newValue: unknown }> = [];
   if (input.title !== undefined && input.title !== current.title) changes.push({ field: "title", oldValue: current.title, newValue: input.title });
   if (input.description !== undefined && input.description !== current.description) changes.push({ field: "description", oldValue: current.description, newValue: input.description });
+  if (input.budget !== undefined && input.budget !== current.budget) changes.push({ field: "budget", oldValue: current.budget, newValue: input.budget });
   if (input.status !== undefined && input.status !== current.status) changes.push({ field: "status", oldValue: current.status, newValue: input.status });
+  if (input.projectId !== undefined && input.projectId !== current.projectId) {
+    changes.push({ field: "project", oldValue: oldProject ? projectSummary(oldProject) : null, newValue: newProject ? projectSummary(newProject) : null });
+  }
   if (input.assignedUserId !== undefined && input.assignedUserId !== current.assignedUserId) {
     changes.push({ field: "assignee", oldValue: oldAssignee ? userSummary(oldAssignee) : null, newValue: newAssignee ? userSummary(newAssignee) : null });
   }
@@ -358,9 +477,16 @@ async function requireUser(tx: any, userId: string): Promise<UserRow> {
   return user;
 }
 
+async function requireProject(tx: any, projectId: string): Promise<ProjectRow> {
+  const [project] = await tx.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!project) throw new ApiError(422, "INVALID_PROJECT", "The selected project does not exist.");
+  return project;
+}
+
 async function itemDtoInTx(tx: any, item: ItemRow) {
   const assignee = item.assignedUserId ? await requireUser(tx, item.assignedUserId) : null;
-  return itemDto(item, assignee);
+  const project = item.projectId ? await requireProject(tx, item.projectId) : null;
+  return itemDto(item, assignee, project);
 }
 
 function encodeCursor(value: object) {
@@ -381,4 +507,5 @@ function escapeLike(value: string) {
 
 const itemCursorSchema = z.object({ priority: z.number().int().positive().nullable(), updatedAt: z.string().datetime(), id: z.string().uuid() });
 const historyCursorSchema = z.object({ createdAt: z.string().datetime(), id: z.string().uuid() });
+const noteCursorSchema = z.object({ createdAt: z.string().datetime(), id: z.string().uuid() });
 const userCursorSchema = z.object({ label: z.string(), id: z.string().uuid() });

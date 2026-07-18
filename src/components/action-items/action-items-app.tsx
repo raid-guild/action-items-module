@@ -29,6 +29,7 @@ import { StatusBadge } from "@/components/action-items/status-badge";
 import {
   apiFetch,
   type ActionItem,
+  type ProjectSummary,
   type UserSummary,
   userLabel,
 } from "@/lib/client-api";
@@ -52,6 +53,7 @@ type UserPage = {
   users: UserSummary[];
   page: { hasMore: boolean; nextCursor: string | null };
 };
+type ProjectList = { projects: ProjectSummary[] };
 
 export function ActionItemsApp() {
   const session = useQuery({
@@ -69,6 +71,12 @@ export function ActionItemsApp() {
   const users = useQuery({
     queryKey: ["users"],
     queryFn: () => apiFetch<UserPage>("/api/v1/users?limit=100"),
+    enabled: session.data?.authenticated === true,
+  });
+
+  const projects = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => apiFetch<ProjectList>("/api/v1/projects?limit=100"),
     enabled: session.data?.authenticated === true,
   });
 
@@ -329,6 +337,7 @@ export function ActionItemsApp() {
         onOpenChange={setDialogOpen}
         itemId={selectedItemId}
         users={users.data?.users ?? []}
+        projects={projects.data?.projects ?? []}
       />
 
       <Dialog open={assistantOpen} onOpenChange={setAssistantOpen}>

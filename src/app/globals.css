@@ -31,7 +31,7 @@
   }
   html {
     @apply h-full;
-    font-size: calc(100% + 9px);
+    font-size: calc(100% + 5px);
   }
   body {
     @apply h-full;

@@ -5,7 +5,9 @@ export function buildGuidancePrompt(selection: string, selectedItems: ActionItem
     id: item.id,
     title: item.title,
     description: item.description,
+    budget: item.budget,
     status: item.status,
+    project: item.project?.title ?? null,
     assignee: item.assignee ? item.assignee.handle || item.assignee.name : null,
     priority: item.priority,
     effort: item.effort

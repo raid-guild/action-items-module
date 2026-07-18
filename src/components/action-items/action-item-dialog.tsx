@@ -24,12 +24,18 @@ import {
   ClientApiError,
   type ActionItem,
   type ActionItemEvent,
+  type ActionItemNote,
+  type ProjectSummary,
   type UserSummary,
   userLabel,
 } from "@/lib/client-api";
 
 type ItemDetail = {
   item: ActionItem;
+  notes: {
+    notes: ActionItemNote[];
+    page: { hasMore: boolean; nextCursor: string | null };
+  };
   history: {
     events: ActionItemEvent[];
     page: { hasMore: boolean; nextCursor: string | null };
@@ -46,11 +52,13 @@ export function ActionItemDialog({
   onOpenChange,
   itemId,
   users,
+  projects,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   itemId: string | null;
   users: UserSummary[];
+  projects: ProjectSummary[];
 }) {
   const queryClient = useQueryClient();
   const isCreate = !itemId;
@@ -75,11 +83,13 @@ export function ActionItemDialog({
   });
   const [form, setForm] = useState(() => initialForm(null));
   const [formError, setFormError] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
 
   useEffect(() => {
     if (open) {
       setForm(initialForm(item));
       setFormError(null);
+      setNoteText("");
     }
   }, [open, item]);
 
@@ -89,7 +99,9 @@ export function ActionItemDialog({
         ...(item ? { version: item.version } : {}),
         title: form.title.trim(),
         description: form.description,
+        budget: form.budget,
         status: form.status,
+        projectId: form.projectId || null,
         assignedUserId: form.assignedUserId || null,
         priority: nullableInteger(form.priority),
         effort: nullableInteger(form.effort),
@@ -146,6 +158,31 @@ export function ActionItemDialog({
           refetchType: "none",
         });
       }
+    },
+  });
+
+  const addNote = useMutation({
+    mutationFn: () =>
+      apiFetch<{ note: ActionItemNote }>(`/api/v1/items/${itemId}/notes`, {
+        method: "POST",
+        body: JSON.stringify({ text: noteText }),
+      }),
+    onSuccess: ({ note }) => {
+      queryClient.setQueryData(
+        ["item", itemId],
+        (previous: ItemDetail | undefined) =>
+          previous
+            ? {
+                ...previous,
+                notes: {
+                  ...previous.notes,
+                  notes: [note, ...previous.notes.notes],
+                },
+              }
+            : previous,
+      );
+      setNoteText("");
+      toast.success("Note added");
     },
   });
 
@@ -207,6 +244,32 @@ export function ActionItemDialog({
                     setForm({ ...form, description: event.target.value })
                   }
                 />
+              </Field>
+              <Field label="Budget" hint="Free-form amount or budget context.">
+                <Input
+                  value={form.budget}
+                  maxLength={10_000}
+                  onChange={(event) =>
+                    setForm({ ...form, budget: event.target.value })
+                  }
+                  placeholder="e.g. 5,000 USDC"
+                />
+              </Field>
+              <Field label="Project">
+                <select
+                  className={selectClass}
+                  value={form.projectId}
+                  onChange={(event) =>
+                    setForm({ ...form, projectId: event.target.value })
+                  }
+                >
+                  <option value="">No project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}{project.status === "closed" ? " (closed)" : ""}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Status">
@@ -305,6 +368,56 @@ export function ActionItemDialog({
 
             <aside className="min-h-64 bg-background/40 p-6">
               <h3 className="mb-4 font-heading text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Notes
+              </h3>
+              {isCreate ? (
+                <p className="mb-8 text-sm text-muted-foreground">
+                  Notes can be added after the item is created.
+                </p>
+              ) : (
+                <div className="mb-8 space-y-4">
+                  <form
+                    className="space-y-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (noteText.trim()) addNote.mutate();
+                    }}
+                  >
+                    <Textarea
+                      value={noteText}
+                      maxLength={100_000}
+                      onChange={(event) => setNoteText(event.target.value)}
+                      placeholder="Add a note…"
+                      aria-label="Note text"
+                    />
+                    <div className="flex justify-end">
+                      <Button type="submit" size="sm" disabled={!noteText.trim() || addNote.isPending}>
+                        {addNote.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Add note
+                      </Button>
+                    </div>
+                    {addNote.error && (
+                      <p className="text-xs text-destructive">{addNote.error.message}</p>
+                    )}
+                  </form>
+                  {detail.data?.notes.notes.length ? (
+                    <ol className="space-y-4">
+                      {detail.data.notes.notes.map((note) => (
+                        <li key={note.id} className="rounded-md border bg-card/60 p-3">
+                          <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{userLabel(note.user)}</span>
+                            <time dateTime={note.createdAt}>{formatDate(note.createdAt)}</time>
+                          </div>
+                          <p className="mt-2 whitespace-pre-wrap text-sm">{note.text}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No notes yet.</p>
+                  )}
+                </div>
+              )}
+              <h3 className="mb-4 font-heading text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 History
               </h3>
               {isCreate ? (
@@ -385,7 +498,9 @@ function initialForm(item: ActionItem | null) {
   return {
     title: item?.title ?? "",
     description: item?.description ?? "",
+    budget: item?.budget ?? "",
     status: item?.status ?? ("open" as ActionItem["status"]),
+    projectId: item?.project?.id ?? "",
     assignedUserId: item?.assignee?.id ?? "",
     priority: item?.priority?.toString() ?? "",
     effort: item?.effort?.toString() ?? "",

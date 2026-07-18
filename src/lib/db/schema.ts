@@ -24,13 +24,31 @@ export const users = actionItemsSchema.table(
   ]
 );
 
+export const projects = actionItemsSchema.table(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    portalLinkUrl: text("portal_link_url"),
+    status: text("status").notNull().default("open")
+  },
+  (table) => [
+    check("projects_title_length_check", sql`char_length(btrim(${table.title})) between 1 and 300`),
+    check("projects_status_check", sql`${table.status} in ('open', 'closed')`),
+    index("projects_status_title_idx").on(table.status, table.title)
+  ]
+);
+
 export const items = actionItemsSchema.table(
   "items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
+    budget: text("budget").notNull().default(""),
     status: text("status").notNull().default("open"),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "restrict" }),
     assignedUserId: uuid("assigned_user_id").references(() => users.id, { onDelete: "restrict" }),
     priority: integer("priority"),
     effort: integer("effort"),
@@ -45,7 +63,24 @@ export const items = actionItemsSchema.table(
     check("items_effort_check", sql`${table.effort} is null or ${table.effort} > 0`),
     index("items_default_order_idx").on(table.priority.asc().nullsLast(), table.updatedAt.desc(), table.id.desc()),
     index("items_status_updated_idx").on(table.status, table.updatedAt.desc(), table.id.desc()),
+    index("items_project_status_idx").on(table.projectId, table.status, table.updatedAt.desc()),
     index("items_assignee_status_priority_idx").on(table.assignedUserId, table.status, table.priority, table.id)
+  ]
+);
+
+export const itemNotes = actionItemsSchema.table(
+  "item_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    itemId: uuid("item_id").notNull().references(() => items.id, { onDelete: "restrict" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    text: text("text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check("item_notes_text_length_check", sql`char_length(btrim(${table.text})) between 1 and 100000`),
+    index("item_notes_item_created_idx").on(table.itemId, table.createdAt.desc(), table.id.desc()),
+    index("item_notes_user_idx").on(table.userId)
   ]
 );
 
@@ -90,5 +125,7 @@ export const idempotencyKeys = actionItemsSchema.table(
 );
 
 export type UserRow = typeof users.$inferSelect;
+export type ProjectRow = typeof projects.$inferSelect;
 export type ItemRow = typeof items.$inferSelect;
+export type ItemNoteRow = typeof itemNotes.$inferSelect;
 export type ItemEventRow = typeof itemEvents.$inferSelect;

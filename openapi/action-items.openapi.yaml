@@ -13,6 +13,8 @@ servers:
     description: Local development
 tags:
   - name: Items
+  - name: Notes
+  - name: Projects
   - name: History
   - name: Users
 security:
@@ -29,6 +31,9 @@ paths:
         - $ref: '#/components/parameters/Search'
         - $ref: '#/components/parameters/Statuses'
         - $ref: '#/components/parameters/AssigneeId'
+        - name: projectId
+          in: query
+          schema: { type: string, format: uuid }
         - name: assignedTo
           in: query
           schema: { type: string, enum: [me, unassigned] }
@@ -74,6 +79,7 @@ paths:
                 value:
                   title: Prepare the cohort kickoff brief
                   description: Gather context and draft the first version.
+                  budget: 5000 USDC
                   status: open
                   priority: 1
                   effort: 3
@@ -105,10 +111,11 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [item, history]
+                required: [item, history, notes]
                 properties:
                   item: { $ref: '#/components/schemas/ActionItem' }
                   history: { $ref: '#/components/schemas/HistoryList' }
+                  notes: { $ref: '#/components/schemas/NoteList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
@@ -155,6 +162,87 @@ paths:
               schema: { $ref: '#/components/schemas/HistoryList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/items/{itemId}/notes:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    get:
+      tags: [Notes]
+      operationId: listActionItemNotes
+      summary: List notes for an action item
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of notes, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NoteList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    post:
+      tags: [Notes]
+      operationId: createActionItemNote
+      summary: Add a user-authored note to an action item
+      description: Requires a Portal user session so the note can be attributed to a local user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateNoteInput' }
+      responses:
+        '201':
+          description: Note created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [note]
+                properties:
+                  note: { $ref: '#/components/schemas/Note' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /api/v1/projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      summary: List projects
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ProjectStatus' }
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Projects ordered by title.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    post:
+      tags: [Projects]
+      operationId: createProject
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectInput' }
+      responses:
+        '201':
+          description: Project created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [project]
+                properties:
+                  project: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /api/v1/users:
     get:
@@ -238,6 +326,9 @@ components:
     Status:
       type: string
       enum: [open, active, completed, cancelled]
+    ProjectStatus:
+      type: string
+      enum: [open, closed]
     UserSummary:
       type: object
       required: [id, portalProfileId, name, handle, avatarUrl, isActive]
@@ -250,12 +341,17 @@ components:
         isActive: { type: boolean }
     ActionItem:
       type: object
-      required: [id, title, description, status, assignee, priority, effort, version, createdAt, updatedAt]
+      required: [id, title, description, budget, status, project, assignee, priority, effort, version, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, minLength: 1, maxLength: 300 }
         description: { type: string, maxLength: 100000 }
+        budget: { type: string, maxLength: 10000 }
         status: { $ref: '#/components/schemas/Status' }
+        project:
+          oneOf:
+            - $ref: '#/components/schemas/Project'
+            - type: 'null'
         assignee:
           oneOf:
             - $ref: '#/components/schemas/UserSummary'
@@ -272,7 +368,9 @@ components:
       properties:
         title: { type: string, minLength: 1, maxLength: 300 }
         description: { type: string, maxLength: 100000, default: '' }
+        budget: { type: string, maxLength: 10000, default: '' }
         status: { $ref: '#/components/schemas/Status' }
+        projectId: { type: [string, 'null'], format: uuid }
         assignedUserId: { type: [string, 'null'], format: uuid }
         priority: { type: [integer, 'null'], minimum: 1 }
         effort: { type: [integer, 'null'], minimum: 1 }
@@ -285,7 +383,9 @@ components:
         version: { type: integer, minimum: 1 }
         title: { type: string, minLength: 1, maxLength: 300 }
         description: { type: string, maxLength: 100000 }
+        budget: { type: string, maxLength: 10000 }
         status: { $ref: '#/components/schemas/Status' }
+        projectId: { type: [string, 'null'], format: uuid }
         assignedUserId: { type: [string, 'null'], format: uuid }
         priority: { type: [integer, 'null'], minimum: 1 }
         effort: { type: [integer, 'null'], minimum: 1 }
@@ -330,6 +430,49 @@ components:
       required: [users, page]
       properties:
         users: { type: array, items: { $ref: '#/components/schemas/UserSummary' } }
+        page: { $ref: '#/components/schemas/Page' }
+    Project:
+      type: object
+      required: [id, title, description, portalLinkUrl, status]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 300 }
+        description: { type: string, maxLength: 100000 }
+        portalLinkUrl: { type: [string, 'null'], format: uri }
+        status: { $ref: '#/components/schemas/ProjectStatus' }
+    CreateProjectInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 300 }
+        description: { type: string, maxLength: 100000, default: '' }
+        portalLinkUrl: { type: [string, 'null'], format: uri, maxLength: 2048 }
+        status: { $ref: '#/components/schemas/ProjectStatus' }
+    ProjectList:
+      type: object
+      required: [projects]
+      properties:
+        projects: { type: array, items: { $ref: '#/components/schemas/Project' } }
+    Note:
+      type: object
+      required: [id, text, user, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string, minLength: 1, maxLength: 100000 }
+        user: { $ref: '#/components/schemas/UserSummary' }
+        createdAt: { type: string, format: date-time }
+    CreateNoteInput:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 100000 }
+    NoteList:
+      type: object
+      required: [notes, page]
+      properties:
+        notes: { type: array, items: { $ref: '#/components/schemas/Note' } }
         page: { $ref: '#/components/schemas/Page' }
     MutationResult:
       type: object

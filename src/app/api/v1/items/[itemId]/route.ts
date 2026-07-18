@@ -4,7 +4,7 @@ import { requireActor } from "@/lib/auth/actor";
 import { errorResponse, jsonWithRequestId } from "@/lib/api/errors";
 import { readJson } from "@/lib/api/body";
 import { updateItemSchema } from "@/lib/action-items/schemas";
-import { getActionItem, listActionItemHistory, updateActionItem } from "@/lib/action-items/service";
+import { getActionItem, listActionItemHistory, listActionItemNotes, updateActionItem } from "@/lib/action-items/service";
 
 type Context = { params: Promise<{ itemId: string }> };
 
@@ -13,11 +13,12 @@ export async function GET(request: NextRequest, { params }: Context) {
   try {
     await requireActor(request);
     const { itemId } = await params;
-    const [item, history] = await Promise.all([
+    const [item, history, notes] = await Promise.all([
       getActionItem(itemId),
-      listActionItemHistory(itemId, { limit: 20 })
+      listActionItemHistory(itemId, { limit: 20 }),
+      listActionItemNotes(itemId, { limit: 50 })
     ]);
-    return jsonWithRequestId({ item, history }, requestId);
+    return jsonWithRequestId({ item, history, notes }, requestId);
   } catch (error) {
     return errorResponse(error, requestId);
   }
