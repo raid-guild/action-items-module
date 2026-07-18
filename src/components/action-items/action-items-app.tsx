@@ -6,12 +6,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Bot,
   ChevronRight,
+  CirclePlus,
   ListFilter,
   Loader2,
   LogOut,
-  Plus,
   ScrollText,
   Search,
+  UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -154,8 +155,8 @@ export function ActionItemsApp() {
   const member = session.data.user!;
   return (
     <main className="flex h-dvh min-h-0 flex-col">
-      <header className="flex shrink-0 flex-wrap items-center gap-3 border-b bg-background/85 px-4 py-3 backdrop-blur md:px-6">
-        <div className="mr-auto flex min-w-48 items-center gap-3">
+      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-background/85 px-4 py-3 backdrop-blur md:gap-3 md:px-6">
+        <div className="mr-auto flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <ListFilter className="h-5 w-5" />
           </div>
@@ -166,7 +167,7 @@ export function ActionItemsApp() {
           </div>
         </div>
 
-        <div className="relative order-last w-full md:order-none md:w-72">
+        <div className="relative order-last mt-1 w-full lg:order-none lg:mt-0 lg:w-72">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -177,27 +178,37 @@ export function ActionItemsApp() {
           />
         </div>
         <Button
-          variant={assignedTo === "me" ? "default" : "outline"}
-          onClick={() => setAssignedTo(assignedTo === "me" ? "" : "me")}
-        >
-          My items
-        </Button>
-        <Button
+          size="icon"
+          aria-label="Create a new item"
+          title="Create a new item"
           onClick={() => {
             setSelectedItemId(null);
             setDialogOpen(true);
           }}
         >
-          <Plus className="h-4 w-4" />
-          New item
+          <CirclePlus className="h-5 w-5" />
         </Button>
-        <div className="ml-1 flex items-center gap-2 border-l pl-3">
-          <Avatar>
-            <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
-            <AvatarFallback>
-              {initials(member.name || member.handle || "RG")}
-            </AvatarFallback>
-          </Avatar>
+        <div className="ml-1 flex items-center gap-1 border-l pl-2 md:gap-2 md:pl-3">
+          <button
+            className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={assignedTo === "me" ? "Show all items" : "Show only my items"}
+            aria-pressed={assignedTo === "me"}
+            title={assignedTo === "me" ? "Show all items" : "Show only my items"}
+            onClick={() => setAssignedTo(assignedTo === "me" ? "" : "me")}
+          >
+            <Avatar
+              className={
+                assignedTo === "me"
+                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                  : "transition-opacity hover:opacity-80"
+              }
+            >
+              <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
+              <AvatarFallback>
+                <UserRound className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+          </button>
           <button
             className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Log out"
@@ -242,7 +253,7 @@ export function ActionItemsApp() {
         )}
       </section>
 
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] border-b bg-muted/30 px-4 py-2 text-[.5rem] font-semibold uppercase tracking-wider text-muted-foreground md:px-6">
+      <div className="hidden shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] border-b bg-muted/30 px-6 py-2 text-[.5rem] font-semibold uppercase tracking-wider text-muted-foreground md:grid">
         <span>Item</span>
         <span>Assignee</span>
         <span>Priority</span>
@@ -291,7 +302,7 @@ export function ActionItemsApp() {
               return (
                 <button
                   key={item.id}
-                  className="absolute left-0 grid w-full grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] items-center border-b px-4 text-left text-sm transition-colors hover:bg-muted/60 focus:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring md:px-6"
+                  className="absolute left-0 grid w-full grid-cols-1 items-center border-b px-4 text-left text-sm transition-colors hover:bg-muted/60 focus:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring md:grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] md:px-6"
                   style={{
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
@@ -305,10 +316,10 @@ export function ActionItemsApp() {
                     <span className="truncate font-medium">{item.title}</span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </span>
-                  <span className="truncate pr-3 text-muted-foreground">
+                  <span className="hidden truncate pr-3 text-muted-foreground md:block">
                     {userLabel(item.assignee)}
                   </span>
-                  <span>
+                  <span className="hidden md:block">
                     {item.priority === null ? (
                       <span className="text-muted-foreground">—</span>
                     ) : (
@@ -317,7 +328,7 @@ export function ActionItemsApp() {
                       </Badge>
                     )}
                   </span>
-                  <span>
+                  <span className="hidden md:block">
                     <StatusBadge status={item.status} />
                   </span>
                 </button>
@@ -367,11 +378,4 @@ function Centered({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
-}
-function initials(value: string) {
-  return value
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }

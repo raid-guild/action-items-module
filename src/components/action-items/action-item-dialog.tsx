@@ -245,16 +245,7 @@ export function ActionItemDialog({
                   }
                 />
               </Field>
-              <Field label="Budget" hint="Free-form amount or budget context.">
-                <Input
-                  value={form.budget}
-                  maxLength={10_000}
-                  onChange={(event) =>
-                    setForm({ ...form, budget: event.target.value })
-                  }
-                  placeholder="e.g. 5,000 USDC"
-                />
-              </Field>
+
               <Field label="Project">
                 <select
                   className={selectClass}
@@ -266,7 +257,8 @@ export function ActionItemDialog({
                   <option value="">No project</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
-                      {project.title}{project.status === "closed" ? " (closed)" : ""}
+                      {project.title}
+                      {project.status === "closed" ? " (closed)" : ""}
                     </option>
                   ))}
                 </select>
@@ -334,6 +326,19 @@ export function ActionItemDialog({
                     }
                   />
                 </Field>
+                <Field
+                  label="Budget"
+                  hint="Free-form amount or budget context."
+                >
+                  <Input
+                    value={form.budget}
+                    maxLength={10_000}
+                    onChange={(event) =>
+                      setForm({ ...form, budget: event.target.value })
+                    }
+                    placeholder="e.g. 5,000 RAID"
+                  />
+                </Field>
               </div>
               {item && (
                 <p className="text-xs text-muted-foreground">
@@ -366,12 +371,12 @@ export function ActionItemDialog({
               </div>
             </form>
 
-            <aside className="min-h-64 bg-background/40 p-6">
-              <h3 className="mb-4 font-heading text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <aside className="min-h-64 bg-background/40 p-6 text-xs leading-relaxed">
+              <h3 className="mb-4 font-heading text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 Notes
               </h3>
               {isCreate ? (
-                <p className="mb-8 text-sm text-muted-foreground">
+                <p className="mb-8 text-xs text-muted-foreground">
                   Notes can be added after the item is created.
                 </p>
               ) : (
@@ -384,6 +389,7 @@ export function ActionItemDialog({
                     }}
                   >
                     <Textarea
+                      className="min-h-20 text-xs"
                       value={noteText}
                       maxLength={100_000}
                       onChange={(event) => setNoteText(event.target.value)}
@@ -391,54 +397,73 @@ export function ActionItemDialog({
                       aria-label="Note text"
                     />
                     <div className="flex justify-end">
-                      <Button type="submit" size="sm" disabled={!noteText.trim() || addNote.isPending}>
-                        {addNote.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={!noteText.trim() || addNote.isPending}
+                      >
+                        {addNote.isPending && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
                         Add note
                       </Button>
                     </div>
                     {addNote.error && (
-                      <p className="text-xs text-destructive">{addNote.error.message}</p>
+                      <p className="text-xs text-destructive">
+                        {addNote.error.message}
+                      </p>
                     )}
                   </form>
                   {detail.data?.notes.notes.length ? (
                     <ol className="space-y-4">
                       {detail.data.notes.notes.map((note) => (
-                        <li key={note.id} className="rounded-md border bg-card/60 p-3">
-                          <div className="flex justify-between gap-2 text-xs text-muted-foreground">
-                            <span className="font-medium text-foreground">{userLabel(note.user)}</span>
-                            <time dateTime={note.createdAt}>{formatDate(note.createdAt)}</time>
+                        <li
+                          key={note.id}
+                          className="rounded-md border bg-card/60 p-3"
+                        >
+                          <div className="flex justify-between gap-2 text-[0.65rem] text-muted-foreground">
+                            <span className="font-medium text-foreground">
+                              {userLabel(note.user)}
+                            </span>
+                            <time dateTime={note.createdAt}>
+                              {formatDate(note.createdAt)}
+                            </time>
                           </div>
-                          <p className="mt-2 whitespace-pre-wrap text-sm">{note.text}</p>
+                          <p className="mt-2 whitespace-pre-wrap text-xs">
+                            {note.text}
+                          </p>
                         </li>
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No notes yet.</p>
+                    <p className="text-xs text-muted-foreground">
+                      No notes yet.
+                    </p>
                   )}
                 </div>
               )}
-              <h3 className="mb-4 font-heading text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="mb-4 font-heading text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
                 History
               </h3>
               {isCreate ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   History begins when the item is created.
                 </p>
               ) : historyGroups.length ? (
-                <ol className="space-y-5">
+                <ol className="space-y-4">
                   {historyGroups.map((group) => (
                     <li
                       key={group.requestId}
                       className="relative border-l border-border pl-4"
                     >
                       <span className="absolute -left-1 top-1 h-2 w-2 rounded-full bg-primary" />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[0.65rem] text-muted-foreground">
                         {formatDate(group.createdAt)}
                       </p>
-                      <p className="mt-1 text-sm font-medium">
+                      <p className="mt-1 text-xs font-medium">
                         {group.actorLabel}
                       </p>
-                      <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+                      <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
                         {group.events.map((event) => (
                           <li key={event.id}>{eventText(event)}</li>
                         ))}
@@ -462,7 +487,7 @@ export function ActionItemDialog({
                   )}
                 </ol>
               ) : (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   No history found.
                 </p>
               )}
