@@ -24,13 +24,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { ActionItemDialog } from "@/components/action-items/action-item-dialog";
 import {
   ActionItemsFilterBar,
   defaultActionItemFilters,
 } from "@/components/action-items/action-items-filter-bar";
 import { StatusBadge } from "@/components/action-items/status-badge";
+import { PriorityBadge } from "@/components/action-items/priority-badge";
 import {
   apiFetch,
   type ActionItem,
@@ -347,9 +347,7 @@ export function ActionItemsApp() {
                     {item.priority === null ? (
                       <span className="text-muted-foreground">—</span>
                     ) : (
-                      <Badge className="border-primary/30 bg-primary/10 text-primary">
-                        P{item.priority}
-                      </Badge>
+                      <PriorityBadge priority={item.priority} />
                     )}
                   </span>
                   <span className="hidden md:block">
