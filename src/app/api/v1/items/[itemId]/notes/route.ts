@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: Context) {
 export async function POST(request: NextRequest, { params }: Context) {
   const requestId = randomUUID();
   try {
-    const actor = await requireActor(request, { portalOnly: true, mutation: true });
+    const actor = await requireActor(request, { mutation: true, localUser: true });
     const { itemId } = await params;
     const input = createItemNoteSchema.parse(await readJson(request));
     return jsonWithRequestId(await createActionItemNote(itemId, input.text, actor), requestId, { status: 201 });

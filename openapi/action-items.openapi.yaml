@@ -212,8 +212,8 @@ paths:
     post:
       tags: [Notes]
       operationId: createActionItemNote
-      summary: Add a user-authored note to an action item
-      description: Requires a Portal user session so the note can be attributed to a local user.
+      summary: Add an attributed note to an action item
+      description: A Portal session is attributed to its local user. An agent bearer principal is attributed to the local Portal user configured by the server.
       requestBody:
         required: true
         content:
@@ -230,6 +230,8 @@ paths:
                 properties:
                   note: { $ref: '#/components/schemas/Note' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: The agent bearer principal has no valid local Portal user mapping.
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /api/v1/projects:

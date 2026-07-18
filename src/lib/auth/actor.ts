@@ -1,6 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { getDb } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
 
 export type Actor = {
   type: "portal_user" | "agent" | "system";
@@ -16,12 +19,20 @@ export class AuthError extends Error {
   }
 }
 
-export async function requireActor(request: NextRequest, options: { portalOnly?: boolean; mutation?: boolean } = {}): Promise<Actor> {
+export async function requireActor(request: NextRequest, options: { portalOnly?: boolean; mutation?: boolean; localUser?: boolean } = {}): Promise<Actor> {
   const token = bearerToken(request);
   if (token && !options.portalOnly) {
     const expected = process.env.ACTION_ITEMS_AGENT_API_TOKEN;
     if (!expected || !safeEqual(token, expected)) throw new AuthError(401, "Invalid bearer credential.");
-    return { type: "agent", id: "agent:prism-action-items", label: "Prism Action Items Agent" };
+    const actor: Actor = { type: "agent", id: "agent:prism-action-items", label: "Prism Action Items Agent" };
+    if (!options.localUser) return actor;
+
+    const portalUserId = process.env.ACTION_ITEMS_AGENT_PORTAL_USER_ID?.trim();
+    if (!portalUserId) throw new AuthError(403, "Agent Portal user mapping required.");
+
+    const [user] = await getDb().select().from(users).where(eq(users.portalUserId, portalUserId)).limit(1);
+    if (!user || !user.isActive) throw new AuthError(403, "The mapped agent Portal user does not exist or is inactive.");
+    return { ...actor, localUserId: user.id, portalUserId: user.portalUserId };
   }
 
   const session = await getSession();

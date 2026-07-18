@@ -48,7 +48,7 @@ Call `GET /api/v1/items/{itemId}/history`. Follow its cursor when older events a
 
 ## Notes
 
-Read notes with `GET /api/v1/items/{itemId}/notes`. Notes are attributed to Portal users, so bearer agents cannot create them. Do not present notes as audit events.
+Read notes with `GET /api/v1/items/{itemId}/notes`. Create a note with `POST /api/v1/items/{itemId}/notes` and a `{ "text": "..." }` body. The server attributes bearer-agent notes to the agent's configured Portal user. Do not present notes as audit events.
 
 ## Multi-item Changes
 
