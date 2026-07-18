@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  createItemNoteSchema, createItemSchema, createProjectSchema, listItemsQuerySchema, updateItemSchema
+  createItemNoteSchema, createItemSchema, createProjectSchema, listItemsQuerySchema, updateItemSchema, updateProjectSchema
 } from "@/lib/action-items/schemas";
 
 describe("action item schemas", () => {
@@ -27,6 +27,10 @@ describe("action item schemas", () => {
 
   it("coerces bounded list limits", () => {
     expect(listItemsQuerySchema.parse({ limit: "100" }).limit).toBe(100);
+    expect(listItemsQuerySchema.parse({ priorities: "1,2", projectIds: "00000000-0000-4000-8000-000000000001" })).toMatchObject({
+      priorities: "1,2",
+      projectIds: "00000000-0000-4000-8000-000000000001"
+    });
     expect(() => listItemsQuerySchema.parse({ limit: "101" })).toThrow();
   });
 
@@ -38,6 +42,8 @@ describe("action item schemas", () => {
       status: "open"
     });
     expect(() => createProjectSchema.parse({ title: "Nope", status: "active" })).toThrow();
+    expect(updateProjectSchema.parse({ status: "closed" })).toEqual({ status: "closed" });
+    expect(() => updateProjectSchema.parse({})).toThrow();
   });
 
   it("trims notes and rejects empty note text", () => {

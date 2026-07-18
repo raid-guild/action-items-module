@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { FolderCog, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,6 +123,7 @@ export function ActionItemDialog({
     onSuccess: async (result) => {
       toast.success(item ? "Action item updated" : "Action item created");
       await queryClient.invalidateQueries({ queryKey: ["items"] });
+      await queryClient.invalidateQueries({ queryKey: ["item-filter-options"] });
       await queryClient.invalidateQueries({
         queryKey: ["item-history", result.item.id],
       });
@@ -263,6 +265,15 @@ export function ActionItemDialog({
                   ))}
                 </select>
               </Field>
+              <div className="-mt-3 flex justify-end">
+                <Link
+                  href="/projects"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                >
+                  <FolderCog className="h-3.5 w-3.5" />
+                  Manage projects
+                </Link>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Status">
                   <select

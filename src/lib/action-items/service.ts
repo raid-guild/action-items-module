@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  and, asc, desc, eq, gt, gte, ilike, inArray, isNull, lt, lte, or, sql, type SQL
+  and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, or, sql, type SQL
 } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "@/lib/auth/actor";
@@ -12,7 +12,7 @@ import {
 } from "@/lib/db/schema";
 import {
   itemStatusSchema, projectStatusSchema,
-  type CreateItemInput, type CreateProjectInput, type UpdateItemInput
+  type CreateItemInput, type CreateProjectInput, type UpdateItemInput, type UpdateProjectInput
 } from "@/lib/action-items/schemas";
 
 export type UserSummary = {
@@ -70,8 +70,10 @@ export async function listActionItems(input: {
   status?: string;
   assigneeId?: string;
   projectId?: string;
+  projectIds?: string;
   assignedTo?: "me" | "unassigned";
   priority?: number;
+  priorities?: string;
   priorityMin?: number;
   priorityMax?: number;
   effortMin?: number;
@@ -94,12 +96,22 @@ export async function listActionItems(input: {
   }
   if (input.assigneeId) conditions.push(eq(items.assignedUserId, input.assigneeId));
   if (input.projectId) conditions.push(eq(items.projectId, input.projectId));
+  if (input.projectIds) {
+    const parsed = z.array(z.string().uuid()).min(1).max(100).safeParse(commaSeparatedValues(input.projectIds));
+    if (!parsed.success) throw new ApiError(422, "INVALID_PROJECT_FILTER", "One or more project filters are invalid.");
+    conditions.push(inArray(items.projectId, parsed.data));
+  }
   if (input.assignedTo === "unassigned") conditions.push(isNull(items.assignedUserId));
   if (input.assignedTo === "me") {
     if (!actor.localUserId) throw new ApiError(422, "ME_FILTER_UNAVAILABLE", "assignedTo=me requires a Portal user session.");
     conditions.push(eq(items.assignedUserId, actor.localUserId));
   }
   if (input.priority !== undefined) conditions.push(eq(items.priority, input.priority));
+  if (input.priorities) {
+    const parsed = z.array(z.coerce.number().int().positive()).min(1).max(100).safeParse(commaSeparatedValues(input.priorities));
+    if (!parsed.success) throw new ApiError(422, "INVALID_PRIORITY_FILTER", "One or more priority filters are invalid.");
+    conditions.push(inArray(items.priority, parsed.data));
+  }
   if (input.priorityMin !== undefined) conditions.push(gte(items.priority, input.priorityMin));
   if (input.priorityMax !== undefined) conditions.push(lte(items.priority, input.priorityMax));
   if (input.effortMin !== undefined) conditions.push(gte(items.effort, input.effortMin));
@@ -147,6 +159,14 @@ export async function getActionItem(itemId: string) {
     .limit(1);
   if (!row) throw new ApiError(404, "ITEM_NOT_FOUND", "Action item not found.");
   return itemDto(row.item, row.assignee, row.project);
+}
+
+export async function listActionItemFilterOptions() {
+  const db = getDb();
+  const rows = await db.selectDistinct({ priority: items.priority }).from(items)
+    .where(isNotNull(items.priority))
+    .orderBy(asc(items.priority));
+  return { priorities: rows.map((row) => row.priority).filter((priority): priority is number => priority !== null) };
 }
 
 export async function createActionItem(input: CreateItemInput, actor: Actor, idempotencyKey?: string | null) {
@@ -329,6 +349,20 @@ export async function createProject(input: CreateProjectInput) {
   return { project: projectSummary(project) };
 }
 
+export async function getProject(projectId: string) {
+  const db = getDb();
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!project) throw new ApiError(404, "PROJECT_NOT_FOUND", "Project not found.");
+  return projectSummary(project);
+}
+
+export async function updateProject(projectId: string, input: UpdateProjectInput) {
+  const db = getDb();
+  const [project] = await db.update(projects).set(input).where(eq(projects.id, projectId)).returning();
+  if (!project) throw new ApiError(404, "PROJECT_NOT_FOUND", "Project not found.");
+  return { project: projectSummary(project) };
+}
+
 export async function listActionItemNotes(itemId: string, input: { limit: number; cursor?: string }) {
   await getActionItem(itemId);
   const db = getDb();
@@ -503,6 +537,10 @@ function decodeCursor<T>(value: string, schema: z.ZodType<T>): T {
 
 function escapeLike(value: string) {
   return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function commaSeparatedValues(value: string) {
+  return value.split(",").map((entry) => entry.trim()).filter(Boolean);
 }
 
 const itemCursorSchema = z.object({ priority: z.number().int().positive().nullable(), updatedAt: z.string().datetime(), id: z.string().uuid() });

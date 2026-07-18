@@ -26,6 +26,10 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ActionItemDialog } from "@/components/action-items/action-item-dialog";
+import {
+  ActionItemsFilterBar,
+  defaultActionItemFilters,
+} from "@/components/action-items/action-items-filter-bar";
 import { StatusBadge } from "@/components/action-items/status-badge";
 import {
   apiFetch,
@@ -55,6 +59,7 @@ type UserPage = {
   page: { hasMore: boolean; nextCursor: string | null };
 };
 type ProjectList = { projects: ProjectSummary[] };
+type FilterOptions = { priorities: number[] };
 
 export function ActionItemsApp() {
   const session = useQuery({
@@ -64,7 +69,7 @@ export function ActionItemsApp() {
   });
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
-  const [assignedTo, setAssignedTo] = useState("");
+  const [filters, setFilters] = useState(defaultActionItemFilters);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -81,15 +86,25 @@ export function ActionItemsApp() {
     enabled: session.data?.authenticated === true,
   });
 
+  const filterOptions = useQuery({
+    queryKey: ["item-filter-options"],
+    queryFn: () =>
+      apiFetch<FilterOptions>("/api/v1/items/filter-options"),
+    enabled: session.data?.authenticated === true,
+  });
+
   const itemsQuery = useInfiniteQuery({
-    queryKey: ["items", deferredSearch, assignedTo],
+    queryKey: ["items", deferredSearch, filters],
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({
-        limit: "50",
-        status: "open,active",
-      });
+      const params = new URLSearchParams({ limit: "50" });
       if (deferredSearch) params.set("q", deferredSearch);
-      if (assignedTo) params.set("assignedTo", assignedTo);
+      if (filters.myItems) params.set("assignedTo", "me");
+      if (filters.statuses.length)
+        params.set("status", filters.statuses.join(","));
+      if (filters.priorities.length)
+        params.set("priorities", filters.priorities.join(","));
+      if (filters.projectIds.length)
+        params.set("projectIds", filters.projectIds.join(","));
       if (pageParam) params.set("cursor", pageParam);
       return apiFetch<ItemPage>(`/api/v1/items?${params}`);
     },
@@ -191,14 +206,16 @@ export function ActionItemsApp() {
         <div className="ml-1 flex items-center gap-1 border-l pl-2 md:gap-2 md:pl-3">
           <button
             className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={assignedTo === "me" ? "Show all items" : "Show only my items"}
-            aria-pressed={assignedTo === "me"}
-            title={assignedTo === "me" ? "Show all items" : "Show only my items"}
-            onClick={() => setAssignedTo(assignedTo === "me" ? "" : "me")}
+            aria-label={filters.myItems ? "Show all assignments" : "Show only my items"}
+            aria-pressed={filters.myItems}
+            title={filters.myItems ? "Remove My items filter" : "Show only my items"}
+            onClick={() =>
+              setFilters({ ...filters, myItems: !filters.myItems })
+            }
           >
             <Avatar
               className={
-                assignedTo === "me"
+                filters.myItems
                   ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
                   : "transition-opacity hover:opacity-80"
               }
@@ -252,6 +269,13 @@ export function ActionItemsApp() {
           </p>
         )}
       </section>
+
+      <ActionItemsFilterBar
+        filters={filters}
+        onChange={setFilters}
+        priorities={filterOptions.data?.priorities ?? []}
+        projects={projects.data?.projects ?? []}
+      />
 
       <div className="hidden shrink-0 grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] border-b bg-muted/30 px-6 py-2 text-[.5rem] font-semibold uppercase tracking-wider text-muted-foreground md:grid">
         <span>Item</span>
