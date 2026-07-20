@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -24,7 +25,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ActionItemDialog } from "@/components/action-items/action-item-dialog";
 import {
   ActionItemsFilterBar,
   defaultActionItemFilters,
@@ -35,7 +35,6 @@ import {
   apiFetch,
   type ActionItem,
   type ProjectSummary,
-  type UserSummary,
   userLabel,
 } from "@/lib/client-api";
 
@@ -54,10 +53,6 @@ type ItemPage = {
   items: ActionItem[];
   page: { hasMore: boolean; nextCursor: string | null };
 };
-type UserPage = {
-  users: UserSummary[];
-  page: { hasMore: boolean; nextCursor: string | null };
-};
 type ProjectList = { projects: ProjectSummary[] };
 type FilterOptions = { priorities: number[] };
 
@@ -70,15 +65,7 @@ export function ActionItemsApp() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
   const [filters, setFilters] = useState(defaultActionItemFilters);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
-
-  const users = useQuery({
-    queryKey: ["users"],
-    queryFn: () => apiFetch<UserPage>("/api/v1/users?limit=100"),
-    enabled: session.data?.authenticated === true,
-  });
 
   const projects = useQuery({
     queryKey: ["projects"],
@@ -192,17 +179,14 @@ export function ActionItemsApp() {
             aria-label="Search action items"
           />
         </div>
-        <Button
-          size="icon"
+        <Link
+          href="/items/new"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Create a new item"
           title="Create a new item"
-          onClick={() => {
-            setSelectedItemId(null);
-            setDialogOpen(true);
-          }}
         >
           <CirclePlus className="h-5 w-5" />
-        </Button>
+        </Link>
         <div className="ml-1 flex items-center gap-1 border-l pl-2 md:gap-2 md:pl-3">
           <button
             className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -324,16 +308,13 @@ export function ActionItemsApp() {
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const item = items[virtualRow.index];
               return (
-                <button
+                <Link
                   key={item.id}
+                  href={`/items/${item.id}`}
                   className="absolute left-0 grid w-full grid-cols-1 items-center border-b px-4 text-left text-sm transition-colors hover:bg-muted/60 focus:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring md:grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] md:px-6"
                   style={{
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                  onClick={() => {
-                    setSelectedItemId(item.id);
-                    setDialogOpen(true);
                   }}
                 >
                   <span className="flex min-w-0 items-center gap-2 pr-3">
@@ -353,7 +334,7 @@ export function ActionItemsApp() {
                   <span className="hidden md:block">
                     <StatusBadge status={item.status} />
                   </span>
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -364,14 +345,6 @@ export function ActionItemsApp() {
           </div>
         )}
       </div>
-
-      <ActionItemDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        itemId={selectedItemId}
-        users={users.data?.users ?? []}
-        projects={projects.data?.projects ?? []}
-      />
 
       <Dialog open={assistantOpen} onOpenChange={setAssistantOpen}>
         <DialogContent className="max-w-xl p-0">
