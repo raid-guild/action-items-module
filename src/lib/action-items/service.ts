@@ -7,12 +7,12 @@ import type { Actor } from "@/lib/auth/actor";
 import { ApiError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db/client";
 import {
-  idempotencyKeys, itemEvents, itemNotes, items, projects, users,
-  type ItemEventRow, type ItemNoteRow, type ItemRow, type ProjectRow, type UserRow
+  idempotencyKeys, itemEvents, itemNotes, items, projectKpis, projectKpiSnapshots, projects, users,
+  type ItemEventRow, type ItemNoteRow, type ItemRow, type ProjectKpiRow, type ProjectKpiSnapshotRow, type ProjectRow, type UserRow
 } from "@/lib/db/schema";
 import {
   itemStatusSchema, projectStatusSchema,
-  type CreateItemInput, type CreateProjectInput, type UpdateItemInput, type UpdateProjectInput
+  type CreateItemInput, type CreateProjectInput, type CreateProjectKpiInput, type CreateProjectKpiSnapshotInput, type PlausibleMeasurementConfig, type UpdateItemInput, type UpdateProjectInput, type UpdateProjectKpiInput
 } from "@/lib/action-items/schemas";
 
 export type UserSummary = {
@@ -28,8 +28,32 @@ export type ProjectSummary = {
   id: string;
   title: string;
   description: string;
+  intent: string;
   portalLinkUrl: string | null;
   status: "open" | "closed";
+};
+
+export type ProjectKpi = {
+  id: string;
+  name: string;
+  description: string;
+  unit: string;
+  source: string;
+  sourceUrl: string | null;
+  measurementConfig: PlausibleMeasurementConfig | null;
+  baselineValue: number;
+  targetValue: number;
+  weight: number;
+  currentValue: number | null;
+  progress: number | null;
+  snapshots: Array<{ id: string; value: number; note: string; capturedAt: string }>;
+};
+
+export type ProjectDashboard = {
+  project: ProjectSummary;
+  health: { score: number | null; change: number | null; history: Array<{ capturedAt: string; score: number }> };
+  delivery: { total: number; completed: number; active: number; open: number; cancelled: number; completionRate: number | null };
+  kpis: ProjectKpi[];
 };
 
 export type ActionItemNote = {
@@ -342,6 +366,7 @@ export async function createProject(input: CreateProjectInput) {
   const [project] = await db.insert(projects).values({
     title: input.title,
     description: input.description,
+    intent: input.intent,
     portalLinkUrl: input.portalLinkUrl ?? null,
     status: input.status
   }).returning();
@@ -361,6 +386,85 @@ export async function updateProject(projectId: string, input: UpdateProjectInput
   const [project] = await db.update(projects).set(input).where(eq(projects.id, projectId)).returning();
   if (!project) throw new ApiError(404, "PROJECT_NOT_FOUND", "Project not found.");
   return { project: projectSummary(project) };
+}
+
+export async function getProjectDashboard(projectId: string): Promise<ProjectDashboard> {
+  const project = await getProject(projectId);
+  const db = getDb();
+  const [kpiRows, itemCounts] = await Promise.all([
+    db.select({ kpi: projectKpis, snapshot: projectKpiSnapshots })
+      .from(projectKpis)
+      .leftJoin(projectKpiSnapshots, eq(projectKpis.id, projectKpiSnapshots.kpiId))
+      .where(eq(projectKpis.projectId, projectId))
+      .orderBy(asc(projectKpis.createdAt), asc(projectKpiSnapshots.capturedAt), asc(projectKpiSnapshots.id)),
+    db.select({ status: items.status, count: sql<number>`count(*)::int` })
+      .from(items).where(eq(items.projectId, projectId)).groupBy(items.status)
+  ]);
+
+  const grouped = new Map<string, { kpi: ProjectKpiRow; snapshots: ProjectKpiSnapshotRow[] }>();
+  for (const row of kpiRows) {
+    const entry = grouped.get(row.kpi.id) ?? { kpi: row.kpi, snapshots: [] };
+    if (row.snapshot) entry.snapshots.push(row.snapshot);
+    grouped.set(row.kpi.id, entry);
+  }
+  const kpis = [...grouped.values()].map(({ kpi, snapshots }) => projectKpiDto(kpi, snapshots));
+  const history = projectHealthHistory(kpis);
+  const score = history.at(-1)?.score ?? null;
+  const previousScore = history.length > 1 ? history.at(-2)!.score : null;
+  const counts = Object.fromEntries(itemCounts.map((row) => [row.status, row.count]));
+  const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
+  const completed = counts.completed ?? 0;
+  return {
+    project,
+    health: { score, change: score !== null && previousScore !== null ? score - previousScore : null, history },
+    delivery: {
+      total, completed, active: counts.active ?? 0, open: counts.open ?? 0,
+      cancelled: counts.cancelled ?? 0, completionRate: total ? Math.round((completed / total) * 100) : null
+    },
+    kpis
+  };
+}
+
+export async function createProjectKpi(projectId: string, input: CreateProjectKpiInput) {
+  await getProject(projectId);
+  const db = getDb();
+  const [kpi] = await db.insert(projectKpis).values({
+    projectId, name: input.name, description: input.description, unit: input.unit,
+    source: input.source, sourceUrl: input.sourceUrl ?? null, baselineValue: input.baselineValue,
+    measurementConfig: input.measurementConfig, targetValue: input.targetValue, weight: input.weight
+  }).returning();
+  if (!kpi) throw new ApiError(500, "CREATE_FAILED", "KPI creation returned no row.");
+  return { kpi: projectKpiDto(kpi, []) };
+}
+
+export async function updateProjectKpi(projectId: string, kpiId: string, input: UpdateProjectKpiInput) {
+  const db = getDb();
+  const [current] = await db.select().from(projectKpis)
+    .where(and(eq(projectKpis.id, kpiId), eq(projectKpis.projectId, projectId))).limit(1);
+  if (!current) throw new ApiError(404, "KPI_NOT_FOUND", "Project KPI not found.");
+  const baselineValue = input.baselineValue ?? current.baselineValue;
+  const targetValue = input.targetValue ?? current.targetValue;
+  if (baselineValue === targetValue) throw new ApiError(422, "INVALID_KPI_TARGET", "Target must be different from baseline.");
+  const [updated] = await db.update(projectKpis).set({ ...input, updatedAt: new Date() })
+    .where(and(eq(projectKpis.id, kpiId), eq(projectKpis.projectId, projectId))).returning();
+  if (!updated) throw new ApiError(404, "KPI_NOT_FOUND", "Project KPI not found.");
+  const snapshots = await db.select().from(projectKpiSnapshots)
+    .where(eq(projectKpiSnapshots.kpiId, kpiId))
+    .orderBy(asc(projectKpiSnapshots.capturedAt), asc(projectKpiSnapshots.id));
+  return { kpi: projectKpiDto(updated, snapshots) };
+}
+
+export async function createProjectKpiSnapshot(projectId: string, kpiId: string, input: CreateProjectKpiSnapshotInput) {
+  const db = getDb();
+  const [kpi] = await db.select().from(projectKpis)
+    .where(and(eq(projectKpis.id, kpiId), eq(projectKpis.projectId, projectId))).limit(1);
+  if (!kpi) throw new ApiError(404, "KPI_NOT_FOUND", "Project KPI not found.");
+  const [snapshot] = await db.insert(projectKpiSnapshots).values({
+    kpiId, value: input.value, note: input.note,
+    capturedAt: input.capturedAt ? new Date(input.capturedAt) : new Date()
+  }).returning();
+  if (!snapshot) throw new ApiError(500, "CREATE_FAILED", "KPI snapshot creation returned no row.");
+  return { snapshot: { id: snapshot.id, value: snapshot.value, note: snapshot.note, capturedAt: snapshot.capturedAt.toISOString() } };
 }
 
 export async function listActionItemNotes(itemId: string, input: { limit: number; cursor?: string }) {
@@ -435,9 +539,44 @@ function projectSummary(project: ProjectRow): ProjectSummary {
     id: project.id,
     title: project.title,
     description: project.description,
+    intent: project.intent,
     portalLinkUrl: project.portalLinkUrl,
     status: projectStatusSchema.parse(project.status)
   };
+}
+
+function projectKpiDto(kpi: ProjectKpiRow, snapshots: ProjectKpiSnapshotRow[]): ProjectKpi {
+  const currentValue = snapshots.at(-1)?.value ?? null;
+  return {
+    id: kpi.id, name: kpi.name, description: kpi.description, unit: kpi.unit,
+    source: kpi.source, sourceUrl: kpi.sourceUrl,
+    measurementConfig: kpi.measurementConfig as PlausibleMeasurementConfig | null,
+    baselineValue: kpi.baselineValue,
+    targetValue: kpi.targetValue, weight: kpi.weight, currentValue,
+    progress: currentValue === null ? null : metricProgress(kpi.baselineValue, kpi.targetValue, currentValue),
+    snapshots: snapshots.map((snapshot) => ({
+      id: snapshot.id, value: snapshot.value, note: snapshot.note, capturedAt: snapshot.capturedAt.toISOString()
+    }))
+  };
+}
+
+function metricProgress(baseline: number, target: number, value: number) {
+  return Math.max(0, Math.min(1, (value - baseline) / (target - baseline)));
+}
+
+function projectHealthHistory(kpis: ProjectKpi[]) {
+  const moments = [...new Set(kpis.flatMap((kpi) => kpi.snapshots.map((snapshot) => snapshot.capturedAt)))].sort();
+  return moments.flatMap((capturedAt) => {
+    let weightedProgress = 0;
+    let totalWeight = 0;
+    for (const kpi of kpis) {
+      const snapshot = kpi.snapshots.filter((entry) => entry.capturedAt <= capturedAt).at(-1);
+      if (!snapshot) continue;
+      weightedProgress += metricProgress(kpi.baselineValue, kpi.targetValue, snapshot.value) * kpi.weight;
+      totalWeight += kpi.weight;
+    }
+    return totalWeight ? [{ capturedAt, score: Math.round((weightedProgress / totalWeight) * 100) }] : [];
+  });
 }
 
 function noteDto(note: ItemNoteRow, user: UserRow): ActionItemNote {

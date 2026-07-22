@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, doublePrecision, index, integer, jsonb, pgSchema, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const actionItemsSchema = pgSchema("action_items");
 
@@ -30,6 +30,7 @@ export const projects = actionItemsSchema.table(
     id: uuid("id").primaryKey().defaultRandom(),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
+    intent: text("intent").notNull().default(""),
     portalLinkUrl: text("portal_link_url"),
     status: text("status").notNull().default("open")
   },
@@ -37,6 +38,46 @@ export const projects = actionItemsSchema.table(
     check("projects_title_length_check", sql`char_length(btrim(${table.title})) between 1 and 300`),
     check("projects_status_check", sql`${table.status} in ('open', 'closed')`),
     index("projects_status_title_idx").on(table.status, table.title)
+  ]
+);
+
+export const projectKpis = actionItemsSchema.table(
+  "project_kpis",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    unit: text("unit").notNull().default("number"),
+    source: text("source").notNull().default("manual"),
+    sourceUrl: text("source_url"),
+    measurementConfig: jsonb("measurement_config").$type<Record<string, unknown> | null>(),
+    baselineValue: doublePrecision("baseline_value").notNull(),
+    targetValue: doublePrecision("target_value").notNull(),
+    weight: integer("weight").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check("project_kpis_name_length_check", sql`char_length(btrim(${table.name})) between 1 and 200`),
+    check("project_kpis_weight_check", sql`${table.weight} between 1 and 10`),
+    check("project_kpis_target_check", sql`${table.targetValue} <> ${table.baselineValue}`),
+    index("project_kpis_project_idx").on(table.projectId, table.createdAt)
+  ]
+);
+
+export const projectKpiSnapshots = actionItemsSchema.table(
+  "project_kpi_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kpiId: uuid("kpi_id").notNull().references(() => projectKpis.id, { onDelete: "cascade" }),
+    value: doublePrecision("value").notNull(),
+    note: text("note").notNull().default(""),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("project_kpi_snapshots_kpi_captured_idx").on(table.kpiId, table.capturedAt, table.id)
   ]
 );
 
@@ -126,6 +167,8 @@ export const idempotencyKeys = actionItemsSchema.table(
 
 export type UserRow = typeof users.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
+export type ProjectKpiRow = typeof projectKpis.$inferSelect;
+export type ProjectKpiSnapshotRow = typeof projectKpiSnapshots.$inferSelect;
 export type ItemRow = typeof items.$inferSelect;
 export type ItemNoteRow = typeof itemNotes.$inferSelect;
 export type ItemEventRow = typeof itemEvents.$inferSelect;

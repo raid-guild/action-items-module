@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, CirclePlus, FolderKanban, Loader2 } from "lucide-react";
+import { ChevronRight, CirclePlus, FolderKanban, Loader2, Pencil } from "lucide-react";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -101,16 +101,13 @@ export function ProjectsApp() {
             <ul className="divide-y divide-border">
               {projects.data.projects.map((project) => (
                 <li key={project.id}>
-                  <button
+                  <div
                     className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/60 focus:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring md:px-5"
-                    onClick={() => {
-                      setSelectedProject(project);
-                      setDialogOpen(true);
-                    }}
                   >
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {project.title}
-                    </span>
+                    <Link className="flex min-w-0 flex-1 items-center gap-2" href={`/projects/${project.id}`}>
+                      <span className="truncate text-sm font-medium">{project.title}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </Link>
                     <Badge
                       className={
                         project.status === "open"
@@ -120,8 +117,14 @@ export function ProjectsApp() {
                     >
                       {project.status === "open" ? "Open" : "Closed"}
                     </Badge>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </button>
+                    <button
+                      className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label={`Edit ${project.title}`}
+                      onClick={() => { setSelectedProject(project); setDialogOpen(true); }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

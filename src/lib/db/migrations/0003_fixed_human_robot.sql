@@ -1,0 +1,1 @@
+ALTER TABLE "action_items"."project_kpis" ADD COLUMN "measurement_config" jsonb;

@@ -1,6 +1,6 @@
-import type { ActionItem, ActionItemEvent, ActionItemNote, ProjectSummary, UserSummary } from "@/lib/action-items/service";
+import type { ActionItem, ActionItemEvent, ActionItemNote, ProjectDashboard, ProjectKpi, ProjectSummary, UserSummary } from "@/lib/action-items/service";
 
-export type { ActionItem, ActionItemEvent, ActionItemNote, ProjectSummary, UserSummary };
+export type { ActionItem, ActionItemEvent, ActionItemNote, ProjectDashboard, ProjectKpi, ProjectSummary, UserSummary };
 
 export class ClientApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details: Record<string, unknown> = {}) {
