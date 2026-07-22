@@ -1,6 +1,6 @@
 ---
 name: manage-action-items
-description: Create, query, assign, prioritize, estimate, budget, organize by project, update, complete, cancel, add notes, and inspect the history of RaidGuild Action Items through the Action Items OpenAPI API. Use for requests about personal, unassigned, project-filtered, status-filtered, priority-filtered, or effort-filtered action items, and when an agent needs to make an audited item change without deleting records.
+description: Create, query, assign, prioritize, estimate, budget, organize by project, update, complete, cancel, add notes, inspect history, and read or manage project KPIs and dashboard statistics through the RaidGuild Action Items OpenAPI API. Use for requests about action items, projects, project intent, delivery status, KPI configuration, KPI history, health scores, or audited item and KPI changes without deleting records.
 ---
 
 # Manage Action Items
@@ -25,6 +25,18 @@ Use `assignedTo=unassigned` to find unassigned work. Effort is an integer with n
 Use `GET /api/v1/projects` to resolve a project and filter items with its exact `projectId`. Use comma-separated `projectIds` when any of several exact projects should match. Never guess between similarly named projects.
 
 Create projects with `POST /api/v1/projects`. To edit a project, first read `GET /api/v1/projects/{projectId}`, then send only the intended changes to `PATCH /api/v1/projects/{projectId}`. Valid project statuses are `open` and `closed`; use `closed` when a project is no longer active.
+
+## Project KPIs and Statistics
+
+Resolve the exact project first, then call `GET /api/v1/projects/{projectId}/dashboard`. Use its `delivery` object for item counts and completion rate, `health` for the weighted score and history, and `kpis` for definitions, current values, normalized progress, measurement configuration, and confirmed snapshot history.
+
+Treat missing values as unknown, not zero. Report the KPI's configured date range, source, aggregation, and filters when interpreting a value. A campaign-filtered Plausible KPI measures only matching attributed traffic; it is not total site traffic.
+
+Create a KPI with `POST /api/v1/projects/{projectId}/kpis`. Before creating it, confirm the name, baseline, target, unit, source, and weight. Update a KPI with `PATCH /api/v1/projects/{projectId}/kpis/{kpiId}` after reading the dashboard and verifying the exact KPI UUID. Send only intended changes.
+
+For Plausible measurement configuration, preserve exact site IDs, metric, aggregation, date range, optional campaign property and value, goal names or per-site overrides, and complete-coverage setting. Use a null campaign filter for total traffic. Never invent a UTM value or Plausible goal name. UTM filters measure tags already present on published links; goal names must match configured Plausible goals.
+
+Log a confirmed point-in-time value with `POST /api/v1/projects/{projectId}/kpis/{kpiId}/snapshots`. Show the KPI, value, capture time, and note and wait for explicit confirmation before writing. Prism proposals are not confirmed snapshots. The Prism trigger and polling routes require an interactive Portal session and are not bearer-agent operations; do not attempt to substitute credentials or write their proposals automatically.
 
 ## Create
 
@@ -62,3 +74,5 @@ The current API does not expose an atomic split operation. Do not emulate a spli
 - For “mark item `<id>` completed,” read it, then patch with its version and `status: completed`.
 - For “show unassigned high-priority work,” query `status=open,active&assignedTo=unassigned&priorityMax=2`.
 - For “who has owned item `<id>`?”, filter or summarize its `assignee` history events.
+- For “how is Summer Brigade doing?”, resolve that project and summarize its dashboard health, delivery, and KPI values with each metric's range and filters.
+- For “record 42 visits for KPI `<id>`,” read the dashboard, verify the KPI and proposed snapshot, request confirmation, then log it.

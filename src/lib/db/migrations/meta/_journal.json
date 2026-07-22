@@ -15,6 +15,20 @@
       "when": 1784388739638,
       "tag": "0001_nice_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784737830659,
+      "tag": "0002_sleepy_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784748706824,
+      "tag": "0003_fixed_human_robot",
+      "breakpoints": true
     }
   ]
 }

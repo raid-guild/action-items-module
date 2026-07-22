@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  createItemNoteSchema, createItemSchema, createProjectSchema, listItemsQuerySchema, updateItemSchema, updateProjectSchema
+  createItemNoteSchema, createItemSchema, createProjectKpiSchema, createProjectKpiSnapshotSchema, createProjectSchema, listItemsQuerySchema, plausibleMeasurementConfigSchema, updateItemSchema, updateProjectSchema
 } from "@/lib/action-items/schemas";
 
 describe("action item schemas", () => {
@@ -13,6 +13,32 @@ describe("action item schemas", () => {
       priority: 1000,
       effort: 5000
     });
+  });
+
+  it("validates KPI targets and snapshot values", () => {
+    expect(createProjectKpiSchema.parse({ name: "Website clicks", baselineValue: 100, targetValue: 500 })).toMatchObject({
+      name: "Website clicks", source: "manual", unit: "number", weight: 1
+    });
+    expect(() => createProjectKpiSchema.parse({ name: "Clicks", baselineValue: 100, targetValue: 100 })).toThrow();
+    expect(createProjectKpiSnapshotSchema.parse({ value: 212 })).toEqual({ value: 212, note: "" });
+  });
+
+  it("validates multi-site Plausible measurement configuration", () => {
+    const config = plausibleMeasurementConfigSchema.parse({
+      provider: "plausible",
+      siteIds: ["fireside.raidguild.org", "portal.raidguild.org", "raidguild.ai", "raidguild.org"],
+      metric: "visits",
+      aggregation: "sum",
+      dateRange: { type: "rolling", days: 14 },
+      campaignFilter: { property: "visit:utm_campaign", value: "summer-brigade" },
+      sharedGoalName: null,
+      siteGoalOverrides: [],
+      requireCompleteCoverage: true
+    });
+    expect(config.siteIds).toHaveLength(4);
+    expect(plausibleMeasurementConfigSchema.parse({ ...config, campaignFilter: null }).campaignFilter).toBeNull();
+    expect(() => plausibleMeasurementConfigSchema.parse({ ...config, siteIds: ["raidguild.org", "raidguild.org"] })).toThrow();
+    expect(() => plausibleMeasurementConfigSchema.parse({ ...config, dateRange: { type: "fixed", start: "2026-08-01", end: "2026-07-01" } })).toThrow();
   });
 
   it("rejects zero and negative priority or effort", () => {
@@ -38,6 +64,7 @@ describe("action item schemas", () => {
     expect(createProjectSchema.parse({ title: "  Portal refresh  ", portalLinkUrl: "https://portal.raidguild.org/projects/refresh" })).toEqual({
       title: "Portal refresh",
       description: "",
+      intent: "",
       portalLinkUrl: "https://portal.raidguild.org/projects/refresh",
       status: "open"
     });

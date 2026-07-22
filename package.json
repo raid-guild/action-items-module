@@ -19,7 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "openapi:validate": "swagger-cli validate openapi/action-items.openapi.yaml",
-    "skill:validate": "python3 /home/skuhl/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/manage-action-items"
+    "skill:validate": "python3 \"${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-creator/scripts/quick_validate.py\" skills/manage-action-items"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

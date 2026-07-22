@@ -60,6 +60,18 @@ describe("Prism external interaction client", () => {
       details: { prismRequestId: "prism-request-3" }
     });
   });
+
+  it("maps an upstream timeout to a safe gateway timeout", async () => {
+    const timeout = new Error("The operation was aborted due to timeout");
+    timeout.name = "TimeoutError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
+
+    await expect(createPrismSession("portal-user:123")).rejects.toMatchObject({
+      status: 504,
+      code: "PRISM_TIMEOUT",
+      message: "Prism did not respond within 45 seconds."
+    });
+  });
 });
 
 function jsonResponse(body: unknown, status: number) {

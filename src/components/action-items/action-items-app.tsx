@@ -11,6 +11,7 @@ import {
   ListFilter,
   Loader2,
   LogOut,
+  FolderKanban,
   ScrollText,
   Search,
   UserRound,
@@ -40,6 +41,7 @@ import {
 
 type SessionResponse = {
   authenticated: boolean;
+  localLoginEnabled: boolean;
   user: {
     id: string;
     portalUserId: string;
@@ -66,6 +68,7 @@ export function ActionItemsApp() {
   const deferredSearch = useDeferredValue(search.trim());
   const [filters, setFilters] = useState(defaultActionItemFilters);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [localPassword, setLocalPassword] = useState("");
 
   const projects = useQuery({
     queryKey: ["projects"],
@@ -120,6 +123,13 @@ export function ActionItemsApp() {
       ),
     onSuccess: () => setAssistantOpen(true),
   });
+  const localLogin = useMutation({
+    mutationFn: () => apiFetch<{ authenticated: boolean }>("/api/session", {
+      method: "POST",
+      body: JSON.stringify({ password: localPassword }),
+    }),
+    onSuccess: () => window.location.reload(),
+  });
 
   if (session.isLoading)
     return (
@@ -139,8 +149,29 @@ export function ActionItemsApp() {
             Launch this module from RaidGuild Portal to establish your member
             session.
           </p>
+          {session.data?.localLoginEnabled && (
+            <form
+              className="mt-6 space-y-3 border-t pt-6 text-left"
+              onSubmit={(event) => { event.preventDefault(); localLogin.mutate(); }}
+            >
+              <label className="block text-xs font-medium" htmlFor="local-admin-password">Local admin password</label>
+              <Input
+                id="local-admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={localPassword}
+                onChange={(event) => setLocalPassword(event.target.value)}
+              />
+              {localLogin.error && <p className="text-xs text-destructive">{localLogin.error.message}</p>}
+              <Button className="w-full" type="submit" disabled={!localPassword || localLogin.isPending}>
+                {localLogin.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Sign in locally
+              </Button>
+            </form>
+          )}
           <Button
-            className="mt-6"
+            className={session.data?.localLoginEnabled ? "mt-3 w-full" : "mt-6"}
+            variant={session.data?.localLoginEnabled ? "ghost" : "default"}
             onClick={() => {
               window.location.href =
                 session.data?.portalUrl ||
@@ -233,6 +264,13 @@ export function ActionItemsApp() {
               Welcome back, {member.name || member.handle || "guild member"}.
             </p>
           </div>
+          <Link
+            href="/projects"
+            className="inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-transparent px-3 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <FolderKanban className="h-4 w-4" />
+            Projects
+          </Link>
           <Button
             variant="outline"
             size="sm"

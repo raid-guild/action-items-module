@@ -46,6 +46,7 @@ export function ProjectDialog({
       const body = {
         title: form.title.trim(),
         description: form.description,
+        intent: form.intent,
         status: form.status,
         portalLinkUrl: form.portalLinkUrl.trim() || null,
       };
@@ -114,6 +115,14 @@ export function ProjectDialog({
               onChange={(event) =>
                 setForm({ ...form, description: event.target.value })
               }
+            />
+          </Field>
+          <Field label="Project intent" hint="The durable outcome this project exists to create.">
+            <Textarea
+              value={form.intent}
+              maxLength={100_000}
+              placeholder="We believe that… so that…"
+              onChange={(event) => setForm({ ...form, intent: event.target.value })}
             />
           </Field>
           <Field label="Status">
@@ -195,6 +204,7 @@ function initialForm(project: ProjectSummary | null) {
   return {
     title: project?.title ?? "",
     description: project?.description ?? "",
+    intent: project?.intent ?? "",
     status: project?.status ?? ("open" as ProjectSummary["status"]),
     portalLinkUrl: project?.portalLinkUrl ?? "",
   };

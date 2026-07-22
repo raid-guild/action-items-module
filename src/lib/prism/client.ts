@@ -16,11 +16,11 @@ export async function createPrismSession(externalUserId: string) {
   return payload.sessionId;
 }
 
-export async function sendPrismMessage(sessionId: string, externalUserId: string, message: string) {
+export async function sendPrismMessage(sessionId: string, externalUserId: string, message: string, options: { timeoutMs?: number } = {}) {
   const response = await prismFetch(`/sessions/${encodeURIComponent(sessionId)}/messages`, externalUserId, {
     method: "POST",
     body: JSON.stringify({ message, metadata: { externalUserId } })
-  });
+  }, options.timeoutMs);
   const payload = await safeJson<PrismMessageResponse>(response);
   if (!response.ok || typeof payload.message?.content !== "string") {
     throw upstreamError(response, payload, "Prism could not answer right now.", "message");
@@ -28,22 +28,29 @@ export async function sendPrismMessage(sessionId: string, externalUserId: string
   return payload.message.content;
 }
 
-function prismFetch(path: string, externalUserId: string, init: RequestInit) {
+async function prismFetch(path: string, externalUserId: string, init: RequestInit, timeoutMs = 45_000) {
   const baseUrl = (process.env.PRISM_BASE_URL?.trim() || "https://prism.raidguild.org").replace(/\/$/, "");
   const interfaceKey = process.env.PRISM_EXTERNAL_INTERFACE_KEY?.trim() || "action-items";
   const credential = process.env.PRISM_EXTERNAL_INTERFACE_CREDENTIAL?.trim();
   if (!credential) throw new ApiError(503, "PRISM_NOT_CONFIGURED", "Prism guidance is not configured.");
-  return fetch(`${baseUrl}/interactions/${encodeURIComponent(interfaceKey)}${path}`, {
-    ...init,
-    cache: "no-store",
-    signal: AbortSignal.timeout(45_000),
-    headers: {
-      authorization: `Bearer ${credential}`,
-      "content-type": "application/json",
-      "x-prism-external-subject": externalUserId,
-      ...init.headers
+  try {
+    return await fetch(`${baseUrl}/interactions/${encodeURIComponent(interfaceKey)}${path}`, {
+      ...init,
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        authorization: `Bearer ${credential}`,
+        "content-type": "application/json",
+        "x-prism-external-subject": externalUserId,
+        ...init.headers
+      }
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new ApiError(504, "PRISM_TIMEOUT", `Prism did not respond within ${Math.round(timeoutMs / 1_000)} seconds.`);
     }
-  });
+    throw error;
+  }
 }
 
 async function safeJson<T>(response: Response): Promise<T> {
