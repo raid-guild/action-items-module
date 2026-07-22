@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearPersistedSnapshot,
   persistSnapshot,
@@ -9,6 +9,7 @@ import {
 
 describe("snapshot browser persistence", () => {
   beforeEach(() => window.localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
 
   it("retains a queued job for a project", () => {
     persistSnapshot("project-1", { status: "queued", jobId: "opaque-job", startedAt: "2026-07-22T18:00:00Z" });
@@ -31,5 +32,13 @@ describe("snapshot browser persistence", () => {
   it("ignores malformed stored data", () => {
     window.localStorage.setItem(snapshotStorageKey("project-1"), "not-json");
     expect(readPersistedSnapshot("project-1")).toBeNull();
+  });
+
+  it("does not fail a snapshot when browser storage is restricted", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("denied"); });
+    expect(() => persistSnapshot("project-1", { status: "queued", jobId: "job", startedAt: "now" })).not.toThrow();
+    vi.restoreAllMocks();
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("denied"); });
+    expect(() => clearPersistedSnapshot("project-1")).not.toThrow();
   });
 });

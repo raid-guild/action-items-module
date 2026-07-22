@@ -19,7 +19,12 @@ export async function POST(request: NextRequest, { params }: Context) {
     if (!dashboard.kpis.length) throw new ApiError(422, "PROJECT_KPIS_REQUIRED", "Add at least one KPI before asking Prism for a snapshot.");
 
     const prismJob = await triggerSnapshotHook(buildSnapshotHookInput(dashboard));
-    const jobId = await issueSnapshotJob({ ...prismJob, projectId, portalUserId: actor.portalUserId });
+    const jobId = await issueSnapshotJob({
+      ...prismJob,
+      projectId,
+      portalUserId: actor.portalUserId,
+      kpiIds: dashboard.kpis.map((kpi) => kpi.id),
+    });
     return jsonWithRequestId({ status: "queued", jobId }, requestId, { status: 202 });
   } catch (error) {
     return errorResponse(error, requestId);

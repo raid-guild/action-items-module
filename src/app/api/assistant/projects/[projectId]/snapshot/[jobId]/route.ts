@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { requireActor } from "@/lib/auth/actor";
 import { ApiError, errorResponse, jsonWithRequestId } from "@/lib/api/errors";
-import { getProjectDashboard } from "@/lib/action-items/service";
 import { parseSnapshotProposal } from "@/lib/prism/snapshot";
 import { getSnapshotHookStatus } from "@/lib/prism/snapshot-hook";
 import { verifySnapshotJob } from "@/lib/prism/snapshot-job";
@@ -22,9 +21,8 @@ export async function GET(request: NextRequest, { params }: Context) {
     const status = await getSnapshotHookStatus({ requestNumber: job.requestNumber, resultUrl: job.resultUrl });
     if (status.status === "queued") return jsonWithRequestId({ status: "queued" }, requestId, { status: 202 });
 
-    const dashboard = await getProjectDashboard(projectId);
     const rawResponse = JSON.stringify(status.result);
-    const parsed = parseSnapshotProposal(rawResponse, dashboard.kpis.map((kpi) => kpi.id));
+    const parsed = parseSnapshotProposal(rawResponse, job.kpiIds);
     return jsonWithRequestId({ proposal: parsed.proposal, parseError: parsed.error, rawResponse }, requestId);
   } catch (error) {
     return errorResponse(error, requestId);

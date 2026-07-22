@@ -7,11 +7,12 @@ import type { SnapshotHookJob } from "@/lib/prism/snapshot-hook";
 const claimsSchema = z.object({
   projectId: z.string().uuid(),
   portalUserId: z.string().min(1),
+  kpiIds: z.array(z.string().uuid()).min(1),
   requestNumber: z.number().int().positive(),
   resultUrl: z.string().min(1)
 });
 
-export async function issueSnapshotJob(input: SnapshotHookJob & { projectId: string; portalUserId: string }) {
+export async function issueSnapshotJob(input: SnapshotHookJob & { projectId: string; portalUserId: string; kpiIds: string[] }) {
   return new SignJWT(input)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuer("raidguild-action-items")
@@ -22,8 +23,9 @@ export async function issueSnapshotJob(input: SnapshotHookJob & { projectId: str
 }
 
 export async function verifySnapshotJob(token: string) {
+  const key = jobKey();
   try {
-    const { payload } = await jwtVerify(token, jobKey(), {
+    const { payload } = await jwtVerify(token, key, {
       algorithms: ["HS256"], issuer: "raidguild-action-items", audience: "project-kpi-snapshot"
     });
     return claimsSchema.parse(payload);

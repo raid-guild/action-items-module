@@ -9,6 +9,7 @@ describe("snapshot job IDs", () => {
     const input = {
       projectId: "00000000-0000-4000-8000-000000000001",
       portalUserId: "portal-user-1",
+      kpiIds: ["00000000-0000-4000-8000-000000000002"],
       requestNumber: 123,
       resultUrl: "/agent/hooks/project-kpi-snapshot/requests/123/result"
     };
@@ -19,8 +20,17 @@ describe("snapshot job IDs", () => {
   it("rejects a modified job ID", async () => {
     const token = await issueSnapshotJob({
       projectId: "00000000-0000-4000-8000-000000000001", portalUserId: "portal-user-1",
+      kpiIds: ["00000000-0000-4000-8000-000000000002"],
       requestNumber: 123, resultUrl: "/agent/hooks/project-kpi-snapshot/requests/123/result"
     });
     await expect(verifySnapshotJob(`${token.slice(0, -1)}x`)).rejects.toMatchObject({ code: "INVALID_SNAPSHOT_JOB" });
+  });
+
+  it("preserves a missing signing-key configuration error", async () => {
+    delete process.env.SESSION_SECRET;
+    await expect(verifySnapshotJob("not-a-token")).rejects.toMatchObject({
+      status: 503,
+      code: "SNAPSHOT_JOB_NOT_CONFIGURED",
+    });
   });
 });

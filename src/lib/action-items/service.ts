@@ -396,7 +396,7 @@ export async function getProjectDashboard(projectId: string): Promise<ProjectDas
       .from(projectKpis)
       .leftJoin(projectKpiSnapshots, eq(projectKpis.id, projectKpiSnapshots.kpiId))
       .where(eq(projectKpis.projectId, projectId))
-      .orderBy(asc(projectKpis.createdAt), asc(projectKpiSnapshots.capturedAt)),
+      .orderBy(asc(projectKpis.createdAt), asc(projectKpiSnapshots.capturedAt), asc(projectKpiSnapshots.id)),
     db.select({ status: items.status, count: sql<number>`count(*)::int` })
       .from(items).where(eq(items.projectId, projectId)).groupBy(items.status)
   ]);
@@ -449,7 +449,8 @@ export async function updateProjectKpi(projectId: string, kpiId: string, input: 
     .where(and(eq(projectKpis.id, kpiId), eq(projectKpis.projectId, projectId))).returning();
   if (!updated) throw new ApiError(404, "KPI_NOT_FOUND", "Project KPI not found.");
   const snapshots = await db.select().from(projectKpiSnapshots)
-    .where(eq(projectKpiSnapshots.kpiId, kpiId)).orderBy(asc(projectKpiSnapshots.capturedAt));
+    .where(eq(projectKpiSnapshots.kpiId, kpiId))
+    .orderBy(asc(projectKpiSnapshots.capturedAt), asc(projectKpiSnapshots.id));
   return { kpi: projectKpiDto(updated, snapshots) };
 }
 
@@ -462,7 +463,7 @@ export async function createProjectKpiSnapshot(projectId: string, kpiId: string,
     kpiId, value: input.value, note: input.note,
     capturedAt: input.capturedAt ? new Date(input.capturedAt) : new Date()
   }).returning();
-  if (!snapshot) throw new ApiError(500, "CREATE_FAILED", "KPI update returned no row.");
+  if (!snapshot) throw new ApiError(500, "CREATE_FAILED", "KPI snapshot creation returned no row.");
   return { snapshot: { id: snapshot.id, value: snapshot.value, note: snapshot.note, capturedAt: snapshot.capturedAt.toISOString() } };
 }
 

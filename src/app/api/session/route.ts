@@ -24,8 +24,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!localLoginEnabled()) return Response.json({ error: { code: "NOT_FOUND", message: "Not found." } }, { status: 404 });
-  const body = await request.json().catch(() => ({}));
-  const password = typeof body.password === "string" ? body.password : "";
+  const body: unknown = await request.json().catch(() => null);
+  const password = body !== null
+    && typeof body === "object"
+    && "password" in body
+    && typeof body.password === "string"
+    ? body.password
+    : "";
   const expected = process.env.LOCAL_ADMIN_PASSWORD!;
   if (!safeEqual(password, expected)) {
     return Response.json({ error: { code: "INVALID_CREDENTIALS", message: "Invalid local admin password." } }, { status: 401 });
@@ -62,7 +67,7 @@ export async function DELETE() {
 }
 
 function localLoginEnabled() {
-  return process.env.NODE_ENV !== "production" && Boolean(process.env.LOCAL_ADMIN_PASSWORD?.trim());
+  return process.env.NODE_ENV === "development" && Boolean(process.env.LOCAL_ADMIN_PASSWORD?.trim());
 }
 
 function safeEqual(left: string, right: string) {

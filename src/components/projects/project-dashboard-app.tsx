@@ -338,25 +338,30 @@ function PrismSnapshotDialog({ projectId, kpis, result, open, onOpenChange, onSa
     setRows(result?.proposal?.metrics.map((metric) => ({ ...metric, selected: true, editedValue: String(metric.value) })) ?? []);
   }, [result]);
   const save = useMutation({
-    mutationFn: () => Promise.all(rows.filter((row) => row.selected).map((row) =>
-      apiFetch(`/api/v1/projects/${projectId}/kpis/${row.kpiId}/snapshots`, {
-        method: "POST",
-        body: JSON.stringify({
-          value: Number(row.editedValue),
-          capturedAt: result!.proposal!.capturedAt,
-          note: `Prism · ${row.confidence} confidence · ${row.source}: ${row.evidence}`
-        })
-      })
-    )),
-    onSuccess: async () => {
-      const count = rows.filter((row) => row.selected).length;
+    mutationFn: async () => {
+      const validRows = rows.filter((row) => row.selected && validSnapshotValue(row.editedValue));
+      await Promise.all(validRows.map((row) => {
+        const note = `Prism · ${row.confidence} confidence · ${row.source}: ${row.evidence}`.slice(0, 2_000);
+        return apiFetch(`/api/v1/projects/${projectId}/kpis/${row.kpiId}/snapshots`, {
+          method: "POST",
+          body: JSON.stringify({
+            value: Number(row.editedValue),
+            capturedAt: result!.proposal!.capturedAt,
+            note,
+          })
+        });
+      }));
+      return validRows.length;
+    },
+    onSuccess: async (count) => {
       toast.success(`${count} Prism snapshot${count === 1 ? "" : "s"} saved`);
       await onSaved();
       onOpenChange(false);
     }
   });
   const kpiName = (id: string) => kpis.find((kpi) => kpi.id === id)?.name ?? "Unknown KPI";
-  const canSave = rows.some((row) => row.selected && row.editedValue !== "" && Number.isFinite(Number(row.editedValue)));
+  const selectedRows = rows.filter((row) => row.selected);
+  const canSave = selectedRows.length > 0 && selectedRows.every((row) => validSnapshotValue(row.editedValue));
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-3xl p-0"><DialogHeader className="border-b px-6 py-5 pr-14"><DialogTitle className="flex items-center gap-2"><Bot className="h-5 w-5 text-primary" /> Prism snapshot proposal</DialogTitle><DialogDescription>Review every measurement before it is added to project history.</DialogDescription></DialogHeader><div className="max-h-[72vh] overflow-y-auto p-6">
     {result?.proposal ? <>
       <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground"><Badge className="border-primary/30 bg-primary/10 text-primary"><Check className="mr-1 h-3 w-3" /> Structured response</Badge><span>Captured {new Date(result.proposal.capturedAt).toLocaleString()}</span></div>
@@ -371,6 +376,7 @@ function PrismSnapshotDialog({ projectId, kpis, result, open, onOpenChange, onSa
 function Field({ label, hint, wide, children }: { label: string; hint?: string; wide?: boolean; children: React.ReactNode }) { return <label className={`block space-y-2 ${wide ? "sm:col-span-2" : ""}`}><span className="text-sm font-medium">{label}</span>{children}{hint && <span className="block text-[.55rem] text-muted-foreground">{hint}</span>}</label>; }
 function formatValue(value: number, unit: string) { if (unit === "percent") return `${value}%`; if (unit === "currency") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value); return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value); }
 function formatDate(value: string) { return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(value)); }
+function validSnapshotValue(value: string) { return value.trim() !== "" && Number.isFinite(Number(value)); }
 function Centered({ children }: { children: React.ReactNode }) { return <main className="flex min-h-dvh items-center justify-center p-8">{children}</main>; }
 const selectClass = "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 

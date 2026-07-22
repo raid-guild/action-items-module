@@ -16,10 +16,14 @@ export async function pollSnapshotJob(
   const sleep = options.sleep ?? ((milliseconds) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
   let elapsed = 0;
   while (elapsed < timeoutMs) {
-    await sleep(intervalMs);
-    elapsed += intervalMs;
+    const delay = Math.min(intervalMs, timeoutMs - elapsed);
+    await sleep(delay);
+    elapsed += delay;
     const result = await getStatus();
     if (!("status" in result) || result.status !== "queued") return result as PrismSnapshotResponse;
   }
-  throw new Error("Prism did not complete the KPI snapshot within four minutes.");
+  const duration = timeoutMs >= 1_000 && timeoutMs % 1_000 === 0
+    ? `${timeoutMs / 1_000} seconds`
+    : `${timeoutMs} milliseconds`;
+  throw new Error(`Prism did not complete the KPI snapshot within ${duration}.`);
 }

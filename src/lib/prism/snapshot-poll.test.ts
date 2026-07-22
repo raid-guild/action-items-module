@@ -15,7 +15,19 @@ describe("snapshot job polling", () => {
 
   it("stops after the polling timeout", async () => {
     const getStatus = vi.fn().mockResolvedValue({ status: "queued" });
-    await expect(pollSnapshotJob(getStatus, { timeoutMs: 3, intervalMs: 1, sleep: async () => {} })).rejects.toThrow(/four minutes/);
+    await expect(pollSnapshotJob(getStatus, { timeoutMs: 3, intervalMs: 1, sleep: async () => {} })).rejects.toThrow(/3 milliseconds/);
     expect(getStatus).toHaveBeenCalledTimes(3);
+  });
+
+  it("caps the final sleep at the remaining timeout", async () => {
+    const delays: number[] = [];
+    const getStatus = vi.fn().mockResolvedValue({ status: "queued" });
+    await expect(pollSnapshotJob(getStatus, {
+      timeoutMs: 3,
+      intervalMs: 10,
+      sleep: async (delay) => { delays.push(delay); },
+    })).rejects.toThrow(/3 milliseconds/);
+    expect(delays).toEqual([3]);
+    expect(getStatus).toHaveBeenCalledOnce();
   });
 });

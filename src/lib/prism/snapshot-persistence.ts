@@ -34,9 +34,19 @@ export function readPersistedSnapshot(projectId: string): PersistedSnapshotJob |
 }
 
 export function persistSnapshot(projectId: string, value: PersistedSnapshotJob) {
-  window.localStorage.setItem(snapshotStorageKey(projectId), JSON.stringify(value));
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(snapshotStorageKey(projectId), JSON.stringify(value));
+  } catch {
+    // Persistence is a convenience; restricted storage must not break snapshots.
+  }
 }
 
 export function clearPersistedSnapshot(projectId: string) {
-  window.localStorage.removeItem(snapshotStorageKey(projectId));
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(snapshotStorageKey(projectId));
+  } catch {
+    // Ignore restricted storage and continue clearing in-memory state.
+  }
 }
