@@ -41,6 +41,7 @@ export const listItemsQuerySchema = z.object({
   assigneeId: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
   projectIds: z.string().max(4_000).optional(),
+  projectAssignment: z.literal("unassigned").optional(),
   assignedTo: z.enum(["me", "unassigned"]).optional(),
   priority: z.coerce.number().int().positive().optional(),
   priorities: z.string().max(1_000).optional(),

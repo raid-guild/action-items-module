@@ -22,7 +22,7 @@ An agent bearer identity cannot use `assignedTo=me`. Resolve the intended person
 
 Use `assignedTo=unassigned` to find unassigned work. Effort is an integer with no defined unit; do not call it hours or points unless the user supplies that context.
 
-Use `GET /api/v1/projects` to resolve a project and filter items with its exact `projectId`. Use comma-separated `projectIds` when any of several exact projects should match. Never guess between similarly named projects.
+Use `GET /api/v1/projects` to resolve a project and filter items with its exact `projectId`. Use comma-separated `projectIds` when any of several exact projects should match. Use `projectAssignment=unassigned` for items with no project; when combined with `projectIds`, either condition can match. Never guess between similarly named projects.
 
 Create projects with `POST /api/v1/projects`. To edit a project, first read `GET /api/v1/projects/{projectId}`, then send only the intended changes to `PATCH /api/v1/projects/{projectId}`. Valid project statuses are `open` and `closed`; use `closed` when a project is no longer active.
 

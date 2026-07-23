@@ -2,25 +2,31 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity, ArrowDownRight, ArrowUpRight, BarChart3, Bot, Check, ChevronRight, CirclePlus,
-  ExternalLink, FolderKanban, Gauge, Loader2, Pencil, Plus, Target
+  ExternalLink, FolderKanban, Gauge, ListTodo, Loader2, Pencil, Plus, Target
 } from "lucide-react";
 import { toast } from "sonner";
+import { PriorityBadge } from "@/components/action-items/priority-badge";
+import { StatusBadge } from "@/components/action-items/status-badge";
 import { ProjectDialog } from "@/components/projects/project-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch, type ProjectDashboard, type ProjectKpi } from "@/lib/client-api";
+import { apiFetch, type ActionItem, type ProjectDashboard, type ProjectKpi, userLabel } from "@/lib/client-api";
 import type { PrismSnapshotProposal } from "@/lib/prism/snapshot";
 import { pollSnapshotJob, type PrismSnapshotResponse, type SnapshotPollResponse } from "@/lib/prism/snapshot-poll";
 import { clearPersistedSnapshot, persistSnapshot, readPersistedSnapshot } from "@/lib/prism/snapshot-persistence";
 import type { PlausibleMeasurementConfig } from "@/lib/action-items/schemas";
 
 type SnapshotStartResponse = { status: "queued"; jobId: string };
+type ItemPage = {
+  items: ActionItem[];
+  page: { hasMore: boolean; nextCursor: string | null };
+};
 
 export function ProjectDashboardApp({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -33,6 +39,16 @@ export function ProjectDashboardApp({ projectId }: { projectId: string }) {
   const dashboard = useQuery({
     queryKey: ["project-dashboard", projectId],
     queryFn: () => apiFetch<{ dashboard: ProjectDashboard }>(`/api/v1/projects/${projectId}/dashboard`),
+  });
+  const projectItems = useInfiniteQuery({
+    queryKey: ["items", "project", projectId],
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ projectId, limit: "50" });
+      if (pageParam) params.set("cursor", pageParam);
+      return apiFetch<ItemPage>(`/api/v1/items?${params}`);
+    },
+    initialPageParam: "",
+    getNextPageParam: (page) => page.page.nextCursor ?? undefined,
   });
   const refresh = async () => {
     await Promise.all([
@@ -81,6 +97,7 @@ export function ProjectDashboardApp({ projectId }: { projectId: string }) {
   if (dashboard.error || !dashboard.data) return <Centered><p className="text-sm text-destructive">{dashboard.error?.message ?? "Project not found."}</p></Centered>;
 
   const data = dashboard.data.dashboard;
+  const associatedItems = projectItems.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <main className="min-h-dvh">
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
@@ -118,6 +135,16 @@ export function ProjectDashboardApp({ projectId }: { projectId: string }) {
           <HealthPanel data={data} />
           <DeliveryPanel data={data} />
         </section>
+
+        <ProjectItemsPanel
+          items={associatedItems}
+          total={data.delivery.total}
+          isLoading={projectItems.isLoading}
+          error={projectItems.error}
+          hasMore={projectItems.hasNextPage}
+          isLoadingMore={projectItems.isFetchingNextPage}
+          onLoadMore={() => projectItems.fetchNextPage()}
+        />
 
         <section className="overflow-hidden rounded-lg border bg-card/40">
           <div className="flex flex-wrap items-center gap-3 border-b px-5 py-4 md:px-6">
@@ -226,6 +253,95 @@ function DeliveryPanel({ data }: { data: ProjectDashboard }) {
         <Stat label="Completed" value={delivery.completed} /><Stat label="Active" value={delivery.active} /><Stat label="Open" value={delivery.open} /><Stat label="Total" value={delivery.total} />
       </dl>
     </div>
+  );
+}
+
+function ProjectItemsPanel({
+  items,
+  total,
+  isLoading,
+  error,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
+}: {
+  items: ActionItem[];
+  total: number;
+  isLoading: boolean;
+  error: Error | null;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  return (
+    <section className="mb-6 overflow-hidden rounded-lg border bg-card/40">
+      <div className="flex items-center gap-3 border-b px-5 py-4 md:px-6">
+        <ListTodo className="h-5 w-5 text-primary" />
+        <div>
+          <h2 className="font-heading text-base font-semibold">Action items</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {total} {total === 1 ? "item" : "items"} associated with this project
+          </p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex min-h-36 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        </div>
+      ) : error ? (
+        <p className="px-6 py-8 text-center text-sm text-destructive">{error.message}</p>
+      ) : !items.length ? (
+        <div className="flex min-h-36 flex-col items-center justify-center px-6 text-center">
+          <p className="font-medium">No action items yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Associate an action item with this project to see it here.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="hidden grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] border-b bg-muted/30 px-6 py-2 text-[.5rem] font-semibold uppercase tracking-wider text-muted-foreground md:grid">
+            <span>Item</span>
+            <span>Assignee</span>
+            <span>Priority</span>
+            <span>Status</span>
+          </div>
+          <div className="divide-y">
+            {items.map((item) => (
+              <Link
+                key={item.id}
+                href={`/items/${item.id}`}
+                className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring md:grid-cols-[minmax(0,1fr)_minmax(120px,240px)_100px_110px] md:px-6"
+              >
+                <span className="min-w-0 truncate font-medium">{item.title}</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground md:hidden" />
+                <span className="hidden truncate pr-3 text-muted-foreground md:block">
+                  {userLabel(item.assignee)}
+                </span>
+                <span className="hidden md:block">
+                  {item.priority === null ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <PriorityBadge priority={item.priority} />
+                  )}
+                </span>
+                <span className="hidden md:block">
+                  <StatusBadge status={item.status} />
+                </span>
+              </Link>
+            ))}
+          </div>
+          {hasMore && (
+            <div className="flex justify-center border-t px-5 py-3">
+              <Button variant="ghost" size="sm" disabled={isLoadingMore} onClick={onLoadMore}>
+                {isLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

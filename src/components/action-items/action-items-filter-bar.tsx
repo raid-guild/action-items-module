@@ -10,6 +10,7 @@ export type ActionItemFilters = {
   statuses: ActionItem["status"][];
   priorities: number[];
   projectIds: string[];
+  unassignedProject: boolean;
 };
 
 export const defaultActionItemFilters: ActionItemFilters = {
@@ -17,6 +18,7 @@ export const defaultActionItemFilters: ActionItemFilters = {
   statuses: ["open", "active"],
   priorities: [],
   projectIds: [],
+  unassignedProject: false,
 };
 
 const statusOptions: Array<{
@@ -75,7 +77,6 @@ export function ActionItemsFilterBar({
           onClick={() => setOpen((value) => !value)}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filters
           {activeFilters.length > 0 && (
             <span className="rounded-full bg-background/20 px-1.5 text-[0.6rem]">
               {activeFilters.length}
@@ -117,7 +118,9 @@ export function ActionItemsFilterBar({
               <FilterCheckbox
                 checked={filters.myItems}
                 label="My items"
-                onChange={(checked) => onChange({ ...filters, myItems: checked })}
+                onChange={(checked) =>
+                  onChange({ ...filters, myItems: checked })
+                }
               />
             </FilterSection>
 
@@ -180,13 +183,25 @@ export function ActionItemsFilterBar({
             <FilterSection
               title="Project"
               onClear={
-                filters.projectIds.length
-                  ? () => onChange({ ...filters, projectIds: [] })
+                filters.projectIds.length || filters.unassignedProject
+                  ? () =>
+                      onChange({
+                        ...filters,
+                        projectIds: [],
+                        unassignedProject: false,
+                      })
                   : undefined
               }
             >
+              <FilterCheckbox
+                checked={filters.unassignedProject}
+                label="No project"
+                onChange={(checked) =>
+                  onChange({ ...filters, unassignedProject: checked })
+                }
+              />
               {projects.length ? (
-                <div className="max-h-40 space-y-1 overflow-y-auto pr-1">
+                <div className="mt-1 max-h-40 space-y-1 overflow-y-auto border-t pt-1 pr-1">
                   {projects.map((project) => (
                     <FilterCheckbox
                       key={project.id}
@@ -195,7 +210,10 @@ export function ActionItemsFilterBar({
                       onChange={() =>
                         onChange({
                           ...filters,
-                          projectIds: toggleValue(filters.projectIds, project.id),
+                          projectIds: toggleValue(
+                            filters.projectIds,
+                            project.id,
+                          ),
                         })
                       }
                     />
@@ -218,6 +236,7 @@ export function ActionItemsFilterBar({
                     statuses: [],
                     priorities: [],
                     projectIds: [],
+                    unassignedProject: false,
                   })
                 }
               >
@@ -296,10 +315,7 @@ function toggleValue<T>(values: T[], value: T) {
     : [...values, value];
 }
 
-function filterChips(
-  filters: ActionItemFilters,
-  projects: ProjectSummary[],
-) {
+function filterChips(filters: ActionItemFilters, projects: ProjectSummary[]) {
   const chips: Array<{
     key: string;
     label: string;
@@ -332,16 +348,22 @@ function filterChips(
       remove: (onChange) => onChange({ ...filters, priorities: [] }),
     });
   }
-  if (filters.projectIds.length) {
+  if (filters.projectIds.length || filters.unassignedProject) {
     const labels = filters.projectIds.map(
       (projectId) =>
         projects.find((project) => project.id === projectId)?.title ??
         "Unknown project",
     );
+    if (filters.unassignedProject) labels.unshift("No project");
     chips.push({
       key: "project",
       label: `Project: ${labels.join(", ")}`,
-      remove: (onChange) => onChange({ ...filters, projectIds: [] }),
+      remove: (onChange) =>
+        onChange({
+          ...filters,
+          projectIds: [],
+          unassignedProject: false,
+        }),
     });
   }
   return chips;

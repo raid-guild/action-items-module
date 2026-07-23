@@ -95,6 +95,7 @@ export async function listActionItems(input: {
   assigneeId?: string;
   projectId?: string;
   projectIds?: string;
+  projectAssignment?: "unassigned";
   assignedTo?: "me" | "unassigned";
   priority?: number;
   priorities?: string;
@@ -120,10 +121,20 @@ export async function listActionItems(input: {
   }
   if (input.assigneeId) conditions.push(eq(items.assignedUserId, input.assigneeId));
   if (input.projectId) conditions.push(eq(items.projectId, input.projectId));
+  let selectedProjectIds: string[] = [];
   if (input.projectIds) {
     const parsed = z.array(z.string().uuid()).min(1).max(100).safeParse(commaSeparatedValues(input.projectIds));
     if (!parsed.success) throw new ApiError(422, "INVALID_PROJECT_FILTER", "One or more project filters are invalid.");
-    conditions.push(inArray(items.projectId, parsed.data));
+    selectedProjectIds = parsed.data;
+  }
+  if (selectedProjectIds.length || input.projectAssignment === "unassigned") {
+    conditions.push(
+      selectedProjectIds.length && input.projectAssignment === "unassigned"
+        ? or(inArray(items.projectId, selectedProjectIds), isNull(items.projectId))!
+        : selectedProjectIds.length
+          ? inArray(items.projectId, selectedProjectIds)
+          : isNull(items.projectId)
+    );
   }
   if (input.assignedTo === "unassigned") conditions.push(isNull(items.assignedUserId));
   if (input.assignedTo === "me") {

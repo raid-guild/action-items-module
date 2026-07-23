@@ -53,10 +53,12 @@ describe("action item schemas", () => {
 
   it("coerces bounded list limits", () => {
     expect(listItemsQuerySchema.parse({ limit: "100" }).limit).toBe(100);
-    expect(listItemsQuerySchema.parse({ priorities: "1,2", projectIds: "00000000-0000-4000-8000-000000000001" })).toMatchObject({
+    expect(listItemsQuerySchema.parse({ priorities: "1,2", projectIds: "00000000-0000-4000-8000-000000000001", projectAssignment: "unassigned" })).toMatchObject({
       priorities: "1,2",
-      projectIds: "00000000-0000-4000-8000-000000000001"
+      projectIds: "00000000-0000-4000-8000-000000000001",
+      projectAssignment: "unassigned"
     });
+    expect(() => listItemsQuerySchema.parse({ projectAssignment: "assigned" })).toThrow();
     expect(() => listItemsQuerySchema.parse({ limit: "101" })).toThrow();
   });
 

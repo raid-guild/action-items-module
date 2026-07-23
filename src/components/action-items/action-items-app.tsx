@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -78,8 +79,7 @@ export function ActionItemsApp() {
 
   const filterOptions = useQuery({
     queryKey: ["item-filter-options"],
-    queryFn: () =>
-      apiFetch<FilterOptions>("/api/v1/items/filter-options"),
+    queryFn: () => apiFetch<FilterOptions>("/api/v1/items/filter-options"),
     enabled: session.data?.authenticated === true,
   });
 
@@ -95,6 +95,8 @@ export function ActionItemsApp() {
         params.set("priorities", filters.priorities.join(","));
       if (filters.projectIds.length)
         params.set("projectIds", filters.projectIds.join(","));
+      if (filters.unassignedProject)
+        params.set("projectAssignment", "unassigned");
       if (pageParam) params.set("cursor", pageParam);
       return apiFetch<ItemPage>(`/api/v1/items?${params}`);
     },
@@ -124,10 +126,11 @@ export function ActionItemsApp() {
     onSuccess: () => setAssistantOpen(true),
   });
   const localLogin = useMutation({
-    mutationFn: () => apiFetch<{ authenticated: boolean }>("/api/session", {
-      method: "POST",
-      body: JSON.stringify({ password: localPassword }),
-    }),
+    mutationFn: () =>
+      apiFetch<{ authenticated: boolean }>("/api/session", {
+        method: "POST",
+        body: JSON.stringify({ password: localPassword }),
+      }),
     onSuccess: () => window.location.reload(),
   });
 
@@ -142,7 +145,13 @@ export function ActionItemsApp() {
       <Centered>
         <div className="max-w-md rounded-lg border bg-card p-8 text-center shadow-2xl">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <ListFilter />
+            <Image
+              src="/monk.png"
+              alt="Action Items monk mascot"
+              width={54}
+              height={68}
+              className="h-12 w-auto"
+            />
           </div>
           <h1 className="font-heading text-2xl font-semibold">Action Items</h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -152,9 +161,17 @@ export function ActionItemsApp() {
           {session.data?.localLoginEnabled && (
             <form
               className="mt-6 space-y-3 border-t pt-6 text-left"
-              onSubmit={(event) => { event.preventDefault(); localLogin.mutate(); }}
+              onSubmit={(event) => {
+                event.preventDefault();
+                localLogin.mutate();
+              }}
             >
-              <label className="block text-xs font-medium" htmlFor="local-admin-password">Local admin password</label>
+              <label
+                className="block text-xs font-medium"
+                htmlFor="local-admin-password"
+              >
+                Local admin password
+              </label>
               <Input
                 id="local-admin-password"
                 type="password"
@@ -162,9 +179,19 @@ export function ActionItemsApp() {
                 value={localPassword}
                 onChange={(event) => setLocalPassword(event.target.value)}
               />
-              {localLogin.error && <p className="text-xs text-destructive">{localLogin.error.message}</p>}
-              <Button className="w-full" type="submit" disabled={!localPassword || localLogin.isPending}>
-                {localLogin.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {localLogin.error && (
+                <p className="text-xs text-destructive">
+                  {localLogin.error.message}
+                </p>
+              )}
+              <Button
+                className="w-full"
+                type="submit"
+                disabled={!localPassword || localLogin.isPending}
+              >
+                {localLogin.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
                 Sign in locally
               </Button>
             </form>
@@ -221,9 +248,13 @@ export function ActionItemsApp() {
         <div className="ml-1 flex items-center gap-1 border-l pl-2 md:gap-2 md:pl-3">
           <button
             className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={filters.myItems ? "Show all assignments" : "Show only my items"}
+            aria-label={
+              filters.myItems ? "Show all assignments" : "Show only my items"
+            }
             aria-pressed={filters.myItems}
-            title={filters.myItems ? "Remove My items filter" : "Show only my items"}
+            title={
+              filters.myItems ? "Remove My items filter" : "Show only my items"
+            }
             onClick={() =>
               setFilters({ ...filters, myItems: !filters.myItems })
             }
@@ -261,7 +292,8 @@ export function ActionItemsApp() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">
-              Welcome back, {member.name || member.handle || "guild member"}.
+              You can just do things,{" "}
+              {member.name || member.handle || "guild member"}.
             </p>
           </div>
           <Link

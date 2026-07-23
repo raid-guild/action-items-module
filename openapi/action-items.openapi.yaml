@@ -38,6 +38,10 @@ paths:
           in: query
           description: Comma-separated project UUIDs. Matches items in any selected project.
           schema: { type: string, maxLength: 4000 }
+        - name: projectAssignment
+          in: query
+          description: Use `unassigned` to include items that are not associated with a project. When combined with `projectIds`, either condition can match.
+          schema: { type: string, enum: [unassigned] }
         - name: assignedTo
           in: query
           schema: { type: string, enum: [me, unassigned] }
