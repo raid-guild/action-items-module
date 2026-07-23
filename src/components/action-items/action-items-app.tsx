@@ -143,7 +143,7 @@ export function ActionItemsApp() {
     return (
       <Centered>
         <div className="max-w-md rounded-lg border bg-card p-8 text-center shadow-2xl">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
             <Image
               src="/monk.png"
               alt="Action Items monk mascot"
@@ -216,7 +216,7 @@ export function ActionItemsApp() {
     <main className="flex h-dvh min-h-0 flex-col">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-background/85 px-4 py-3 backdrop-blur md:gap-3 md:px-6">
         <div className="mr-auto flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center">
             <Image
               src="/monk.png"
               alt="Action Items monk mascot"

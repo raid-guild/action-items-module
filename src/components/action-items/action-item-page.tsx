@@ -100,7 +100,7 @@ export function ActionItemPage({ itemId }: { itemId: string | null }) {
     return (
       <main className="flex min-h-dvh items-center justify-center px-4">
         <div className="max-w-md rounded-lg border bg-card p-8 text-center shadow-2xl">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
             <Image
               src="/monk.png"
               alt="Action Items monk mascot"
