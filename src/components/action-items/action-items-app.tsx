@@ -9,7 +9,6 @@ import {
   Bot,
   ChevronRight,
   CirclePlus,
-  ListFilter,
   Loader2,
   LogOut,
   FolderKanban,
@@ -218,7 +217,13 @@ export function ActionItemsApp() {
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-background/85 px-4 py-3 backdrop-blur md:gap-3 md:px-6">
         <div className="mr-auto flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <ListFilter className="h-5 w-5" />
+            <Image
+              src="/monk.png"
+              alt="Action Items monk mascot"
+              width={54}
+              height={68}
+              className="h-9 w-auto"
+            />
           </div>
           <div>
             <h1 className="font-heading text-lg font-semibold leading-tight">

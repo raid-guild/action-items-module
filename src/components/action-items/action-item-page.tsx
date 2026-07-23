@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,7 +17,6 @@ import {
   Check,
   Clipboard,
   FolderCog,
-  ListFilter,
   Loader2,
   MessageSquareText,
   Save,
@@ -101,7 +101,13 @@ export function ActionItemPage({ itemId }: { itemId: string | null }) {
       <main className="flex min-h-dvh items-center justify-center px-4">
         <div className="max-w-md rounded-lg border bg-card p-8 text-center shadow-2xl">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <ListFilter />
+            <Image
+              src="/monk.png"
+              alt="Action Items monk mascot"
+              width={54}
+              height={68}
+              className="h-12 w-auto"
+            />
           </div>
           <h1 className="font-heading text-xl font-semibold">Action Items</h1>
           <p className="mt-2 text-sm text-muted-foreground">
