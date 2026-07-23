@@ -10,7 +10,7 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "onk's Office· Raid Guild",
+  title: "Monk's Office· Raid Guild",
   description: "RaidGuild's shared, agent-ready action item list.",
   icons: {
     icon: [{ url: "/favicon.ico?v=1", type: "image/x-icon", sizes: "any" }],
