@@ -43,7 +43,11 @@ export function ProjectDashboardApp({ projectId }: { projectId: string }) {
   const projectItems = useInfiniteQuery({
     queryKey: ["items", "project", projectId],
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ projectId, limit: "50" });
+      const params = new URLSearchParams({
+        projectId,
+        status: "open,active,completed",
+        limit: "50",
+      });
       if (pageParam) params.set("cursor", pageParam);
       return apiFetch<ItemPage>(`/api/v1/items?${params}`);
     },
@@ -138,7 +142,7 @@ export function ProjectDashboardApp({ projectId }: { projectId: string }) {
 
         <ProjectItemsPanel
           items={associatedItems}
-          total={data.delivery.total}
+          total={data.delivery.total - data.delivery.cancelled}
           isLoading={projectItems.isLoading}
           error={projectItems.error}
           hasMore={projectItems.hasNextPage}
