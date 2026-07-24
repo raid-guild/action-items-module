@@ -214,25 +214,25 @@ export function ActionItemsApp() {
   const member = session.data.user!;
   return (
     <main className="flex h-dvh min-h-0 flex-col">
-      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-background/85 px-4 py-3 backdrop-blur md:gap-3 md:px-6">
-        <div className="mr-auto flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+      <header className="flex shrink-0 flex-nowrap items-center gap-2 border-b bg-background/85 px-3 py-2 backdrop-blur md:gap-3 md:px-6 md:py-3">
+        <div className="mr-auto flex min-w-0 items-center gap-2 md:gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center max-[360px]:h-7 max-[360px]:w-7 md:h-9 md:w-9">
             <Image
               src="/monk.png"
               alt="Action Items monk mascot"
               width={54}
               height={68}
-              className="h-9 w-auto"
+              className="h-8 w-auto max-[360px]:h-7 md:h-9"
             />
           </div>
-          <div>
-            <h1 className="font-heading text-lg font-semibold leading-tight">
+          <div className="min-w-0">
+            <h1 className="truncate font-heading text-base font-semibold leading-tight max-[360px]:text-sm md:text-lg">
               Action Items
             </h1>
           </div>
         </div>
 
-        <div className="relative order-last mt-1 w-full lg:order-none lg:mt-0 lg:w-72">
+        <div className="relative hidden w-72 md:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -244,13 +244,13 @@ export function ActionItemsApp() {
         </div>
         <Link
           href="/items/new"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-9 md:w-9"
           aria-label="Create a new item"
           title="Create a new item"
         >
           <CirclePlus className="h-5 w-5" />
         </Link>
-        <div className="ml-1 flex items-center gap-1 border-l pl-2 md:gap-2 md:pl-3">
+        <div className="flex shrink-0 items-center gap-1 border-l pl-2 md:ml-1 md:gap-2 md:pl-3">
           <button
             className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={
@@ -263,22 +263,22 @@ export function ActionItemsApp() {
             onClick={() =>
               setFilters({ ...filters, myItems: !filters.myItems })
             }
-          >
-            <Avatar
-              className={
-                filters.myItems
-                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                  : "transition-opacity hover:opacity-80"
-              }
             >
-              <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
-              <AvatarFallback>
-                <UserRound className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
+              <Avatar
+                className={
+                  filters.myItems
+                    ? "h-7 w-7 ring-2 ring-primary ring-offset-2 ring-offset-background md:h-8 md:w-8"
+                    : "h-7 w-7 transition-opacity hover:opacity-80 md:h-8 md:w-8"
+                }
+              >
+                <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
+                <AvatarFallback>
+                  <UserRound className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
           </button>
           <button
-            className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground md:p-2"
             aria-label="Log out"
             onClick={async () => {
               await apiFetch("/api/session", { method: "DELETE" });
@@ -290,12 +290,12 @@ export function ActionItemsApp() {
         </div>
       </header>
 
-      <section className="shrink-0 border-b bg-card/45 px-4 py-3 md:px-6">
-        <div className="flex items-center gap-3">
+      <section className="shrink-0 border-b bg-card/45 px-3 py-2 md:px-6 md:py-3">
+        <div className="flex items-center justify-end gap-2 md:justify-start md:gap-3">
           <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary sm:flex">
             <ScrollText className="h-4 w-4" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="hidden min-w-0 flex-1 md:block">
             <p className="text-sm font-medium">
               You can just do things,{" "}
               {member.name || member.handle || "guild member"}.
@@ -303,7 +303,7 @@ export function ActionItemsApp() {
           </div>
           <Link
             href="/projects"
-            className="inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-border bg-transparent px-3 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-transparent px-2 text-[0.65rem] font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3 sm:text-xs md:gap-2"
           >
             <FolderKanban className="h-4 w-4" />
             Projects
@@ -311,6 +311,7 @@ export function ActionItemsApp() {
           <Button
             variant="outline"
             size="sm"
+            className="gap-1.5 px-2 text-[0.65rem] sm:px-3 sm:text-xs md:gap-2"
             onClick={() => assistant.mutate()}
             disabled={assistant.isPending}
           >
